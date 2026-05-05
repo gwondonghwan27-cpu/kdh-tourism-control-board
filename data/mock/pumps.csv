@@ -1,0 +1,2 @@
+pump_id,from_node,to_node,status,base_head_gain_m,speed_multiplier
+PU1,R1,J1,on,3.0,1.0
