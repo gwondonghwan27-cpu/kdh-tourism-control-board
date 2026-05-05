@@ -1,0 +1,11 @@
+sensor_id,node_or_pipe_id,sensor_type,location_type,noise_std,last_calibrated_date
+S1,J4,pressure,node,0.25,2026-01-01
+S2,J8,pressure,node,0.25,2026-01-01
+S3,J12,pressure,node,0.25,2026-01-01
+S4,J16,pressure,node,0.25,2026-01-01
+S5,J20,pressure,node,0.25,2026-01-01
+S6,J24,pressure,node,0.25,2026-01-01
+S7,J28,pressure,node,0.25,2026-01-01
+S8,J30,pressure,node,0.25,2026-01-01
+S9,P10,flow,pipe,0.12,2026-01-01
+S10,P25,flow,pipe,0.12,2026-01-01
