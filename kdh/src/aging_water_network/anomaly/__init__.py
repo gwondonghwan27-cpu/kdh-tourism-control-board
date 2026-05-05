@@ -1,2 +1,0 @@
-"""Residual-based anomaly helpers."""
-

@@ -1,9 +1,0 @@
-valve_id,pipe_id,valve_type,status,operation_count_last_year,minor_loss_k
-V1,P4,isolation,open,17,0.5
-V2,P9,isolation,open,24,0.75
-V3,P15,PRV,open,204,1.4
-V4,P22,isolation,open,38,0.5
-V5,P29,isolation,open,45,0.75
-V6,P35,PRV,open,228,1.4
-V7,P42,isolation,open,59,0.5
-V8,P48,isolation,open,66,0.75
