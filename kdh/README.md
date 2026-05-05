@@ -65,6 +65,25 @@ The dashboard includes six tabs:
 - Live Control: interactively change time-step demand, source pressure, leak location, and leak magnitude, then see pressure and leak-suspect maps update.
 - Control Recommendation: ranked actions with expected effect and risks.
 
+## Run The Exact HTML Dashboard In Streamlit
+
+To share the same interactive HTML dashboard through Streamlit, run:
+
+```bash
+streamlit run app/streamlit_html_dashboard.py
+```
+
+This Streamlit entrypoint embeds the current static dashboard from `frontend/index.html`, `frontend/styles.css`, `frontend/app.js`, and the mock CSV files under `data/mock`. It is meant for Streamlit Community Cloud or any Streamlit server where other users should see the same dashboard UI that is available from the local HTML version.
+
+For Streamlit Community Cloud:
+
+1. Push this repository to GitHub.
+2. Create a new Streamlit app from the GitHub repository.
+3. Set the main file path to `app/streamlit_html_dashboard.py`.
+4. Let Streamlit install dependencies from `requirements.txt`.
+
+The embedded HTML dashboard currently uses the mock data bundled in this repository. Runtime edits inside the map are browser-session state, so they are useful for design simulation and demonstrations but are not persisted to a database yet.
+
 ## Dynamic Household Demand
 
 Mock data includes:
