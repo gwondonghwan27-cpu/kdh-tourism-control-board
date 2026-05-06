@@ -27,6 +27,95 @@ body {
     sans-serif;
 }
 
+.global-index {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: minmax(250px, 1fr) auto minmax(250px, 1fr);
+  min-height: 72px;
+  align-items: center;
+  gap: 28px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.96);
+  padding: 0 clamp(18px, 4vw, 56px);
+  backdrop-filter: blur(10px);
+}
+
+.global-index::after {
+  content: "";
+}
+
+.global-brand {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 250px;
+}
+
+.brand-mark {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border: 2px solid #9fc0d2;
+  border-radius: 50%;
+  color: var(--accent);
+  font-size: 1rem;
+  font-weight: 950;
+}
+
+.global-brand strong,
+.global-brand span {
+  display: block;
+}
+
+.global-brand strong {
+  color: #0f2f46;
+  font-size: 1.12rem;
+  font-weight: 950;
+}
+
+.global-brand span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.73rem;
+  font-weight: 800;
+}
+
+.global-nav {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 4px;
+  align-self: stretch;
+}
+
+.global-nav-link {
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--ink);
+  padding: 0 18px;
+  font-size: 0.93rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.global-nav-link.active,
+.global-nav-link:hover {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+
+.app-view {
+  display: none;
+}
+
+.app-view.active {
+  display: block;
+}
+
 .app-header {
   display: flex;
   min-height: 170px;
@@ -39,6 +128,13 @@ body {
     url("https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=1800&q=80")
       center / cover;
   color: white;
+}
+
+.recognition-header {
+  background:
+    linear-gradient(rgba(15, 32, 40, 0.72), rgba(15, 32, 40, 0.72)),
+    url("https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1800&q=80")
+      center / cover;
 }
 
 .eyebrow,
@@ -90,7 +186,9 @@ main {
 .asset-toolbar,
 .metric-grid,
 .workspace,
-.analysis-grid {
+.analysis-grid,
+.recognition-console,
+.recognition-grid {
   width: min(1480px, 100%);
   margin-inline: auto;
 }
@@ -101,7 +199,10 @@ main {
 .metric-grid article,
 .analysis-grid article,
 .side-panel,
-.map-panel {
+.map-panel,
+.recognition-console,
+.drawing-preview-panel,
+.recognition-side-panel {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
@@ -111,6 +212,102 @@ main {
   display: grid;
   gap: 13px;
   padding: 16px;
+}
+
+.recognition-workspace {
+  padding-top: 18px;
+}
+
+.recognition-console {
+  display: grid;
+  grid-template-columns: minmax(190px, 1.2fr) repeat(5, minmax(120px, 1fr)) max-content;
+  align-items: end;
+  gap: 12px;
+  padding: 14px;
+}
+
+.recognition-grid {
+  display: grid;
+  grid-template-columns: minmax(620px, 1fr) 430px;
+  gap: 14px;
+  margin-top: 14px;
+  align-items: start;
+}
+
+.drawing-preview-panel,
+.recognition-side-panel {
+  padding: 16px;
+}
+
+.recognition-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.drawing-canvas-frame {
+  position: relative;
+  margin-top: 16px;
+  min-height: 560px;
+  overflow: hidden;
+  border: 1px solid #e1e8ee;
+  background:
+    linear-gradient(#eef4f8 1px, transparent 1px),
+    linear-gradient(90deg, #eef4f8 1px, transparent 1px),
+    #fbfdff;
+  background-size: 32px 32px;
+}
+
+#drawing-canvas {
+  display: block;
+  width: 100%;
+  min-height: 560px;
+}
+
+#drawing-empty-state {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.recognition-metrics {
+  width: 100%;
+  grid-template-columns: 1fr 1fr;
+  margin: 0;
+}
+
+.recognition-table {
+  max-height: 270px;
+  overflow: auto;
+  border: 1px solid #e1e8ee;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.recognition-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.recognition-table th,
+.recognition-table td {
+  border-bottom: 1px solid #e5edf2;
+  padding: 8px 9px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.recognition-table th {
+  position: sticky;
+  top: 0;
+  background: #eff5f8;
+  color: #385263;
+  font-weight: 900;
 }
 
 .timeline-head {
@@ -176,7 +373,7 @@ main {
 
 .asset-toolbar {
   display: grid;
-  grid-template-columns: max-content 118px minmax(120px, 180px) max-content 134px minmax(120px, 180px) repeat(3, max-content);
+  grid-template-columns: max-content 118px minmax(120px, 180px) max-content 134px minmax(120px, 180px) repeat(4, max-content);
   align-items: center;
   gap: 10px;
   margin-top: 12px;
@@ -809,7 +1006,9 @@ button:disabled {
   .control-band,
   .asset-toolbar,
   .workspace,
-  .analysis-grid {
+  .analysis-grid,
+  .recognition-console,
+  .recognition-grid {
     grid-template-columns: 1fr;
   }
 
@@ -819,10 +1018,31 @@ button:disabled {
 }
 
 @media (max-width: 760px) {
+  .global-index,
   .app-header,
   .timeline-head {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .global-index {
+    position: static;
+    display: flex;
+    padding-block: 14px;
+  }
+
+  .global-index::after {
+    display: none;
+  }
+
+  .global-nav {
+    width: 100%;
+  }
+
+  .global-nav-link {
+    flex: 1;
+    min-height: 42px;
+    padding: 0 8px;
   }
 
   .status-strip {

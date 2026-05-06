@@ -7,18 +7,132 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <header class="app-header">
-      <div>
-        <p class="eyebrow">EPANET-ready hydraulic digital twin</p>
-        <h1>상수관망 압력·유량 변화 관제 보드</h1>
+    <header class="global-index" aria-label="main navigation">
+      <div class="global-brand">
+        <div class="brand-mark">W</div>
+        <div>
+          <strong>상수관망 디지털 트윈</strong>
+          <span>Water Network Digital Twin</span>
+        </div>
       </div>
-      <div class="status-strip" aria-label="simulation status">
-        <span id="scenario-label">mock network / live controls</span>
-        <span id="time-label">ready</span>
-      </div>
+      <nav class="global-nav" aria-label="workspace index">
+        <button class="global-nav-link" data-view-target="recognition" type="button">도면 인식</button>
+        <button class="global-nav-link active" data-view-target="dashboard" type="button">관망조절 대쉬보드</button>
+      </nav>
     </header>
 
-    <main>
+    <section id="recognition-view" class="app-view" data-view="recognition" aria-label="drawing recognition workspace">
+      <header class="app-header recognition-header">
+        <div>
+          <p class="eyebrow">OpenCV-ready drawing intake</p>
+          <h1>관망 도면 이미지 인식</h1>
+        </div>
+        <div class="status-strip" aria-label="recognition status">
+          <span id="recognition-status">image waiting</span>
+          <span id="recognition-count">0 pipes / 0 nodes</span>
+        </div>
+      </header>
+
+      <main class="recognition-workspace">
+        <section class="recognition-console" aria-label="drawing recognition controls">
+          <label>
+            관망 도면 파일
+            <input id="drawing-file" type="file" accept="image/png,image/jpeg" />
+          </label>
+          <label>
+            최소 선분 길이
+            <input id="drawing-min-line" type="range" min="20" max="180" step="5" value="45" />
+            <span id="drawing-min-line-value">45 px</span>
+          </label>
+          <label>
+            끝점 병합 허용치
+            <input id="drawing-merge-tolerance" type="range" min="6" max="42" step="2" value="18" />
+            <span id="drawing-merge-tolerance-value">18 px</span>
+          </label>
+          <label>
+            픽셀-미터 환산
+            <input id="drawing-scale" type="number" min="0.01" max="20" step="0.05" value="1" />
+          </label>
+          <label>
+            기본 관경
+            <input id="drawing-diameter" type="number" min="50" max="1200" step="10" value="150" />
+          </label>
+          <label>
+            기본 재질
+            <select id="drawing-material">
+              <option value="PVC">PVC</option>
+              <option value="HDPE">HDPE</option>
+              <option value="ductile_iron">ductile iron</option>
+              <option value="steel">steel</option>
+              <option value="cast_iron">cast iron</option>
+              <option value="concrete">concrete</option>
+            </select>
+          </label>
+          <button id="analyze-drawing" class="primary-button" type="button">도면 분석</button>
+        </section>
+
+        <section class="recognition-grid">
+          <article class="drawing-preview-panel">
+            <div class="section-heading">
+              <h2>도면 오버레이</h2>
+              <div class="recognition-actions">
+                <button id="download-assets-json" class="text-button" type="button" disabled>JSON</button>
+                <button id="download-nodes-csv" class="text-button" type="button" disabled>nodes.csv</button>
+                <button id="download-pipes-csv" class="text-button" type="button" disabled>pipes.csv</button>
+                <button id="download-reservoirs-csv" class="text-button" type="button" disabled>reservoirs.csv</button>
+              </div>
+            </div>
+            <div class="drawing-canvas-frame">
+              <canvas id="drawing-canvas" width="1120" height="620"></canvas>
+              <div id="drawing-empty-state">JPG 또는 PNG 관망 도면을 선택하세요.</div>
+            </div>
+          </article>
+
+          <aside class="recognition-side-panel">
+            <div class="metric-grid recognition-metrics">
+              <article>
+                <span>Pipe 후보</span>
+                <strong id="recognized-pipe-count">0</strong>
+              </article>
+              <article>
+                <span>Node 후보</span>
+                <strong id="recognized-node-count">0</strong>
+              </article>
+              <article>
+                <span>이미지 크기</span>
+                <strong id="recognized-image-size">--</strong>
+              </article>
+              <article>
+                <span>Export 상태</span>
+                <strong id="recognized-export-state">대기</strong>
+              </article>
+            </div>
+            <div class="section-heading compact-heading">
+              <h2>nodes.csv 후보</h2>
+            </div>
+            <div id="recognized-nodes-table" class="recognition-table"></div>
+            <div class="section-heading compact-heading">
+              <h2>pipes.csv 후보</h2>
+            </div>
+            <div id="recognized-pipes-table" class="recognition-table"></div>
+          </aside>
+        </section>
+      </main>
+    </section>
+
+    <section id="dashboard-view" class="app-view active" data-view="dashboard" aria-label="network control dashboard">
+      <header class="app-header">
+        <div>
+          <p class="eyebrow">EPANET-ready hydraulic digital twin</p>
+          <h1>상수관망 압력·유량 변화 관제 보드</h1>
+        </div>
+        <div class="status-strip" aria-label="simulation status">
+          <span id="scenario-label">mock network / live controls</span>
+          <span id="time-label">ready</span>
+        </div>
+      </header>
+
+      <main>
       <section class="timeline-console" aria-label="time playback controls">
         <div class="timeline-head">
           <div>
@@ -79,7 +193,8 @@
         </button>
         <select id="selected-junction" aria-label="선택 Junction"></select>
         <button id="add-junction-mode" class="primary-button" type="button">Junction 추가</button>
-        <button id="draw-pipe-mode" class="primary-button" type="button">Pipe 그리기</button>
+        <button id="delete-junction" class="text-button danger-button" type="button">Junction 삭제</button>
+        <button id="draw-pipe-mode" class="primary-button" type="button">Pipe 추가</button>
         <button id="delete-pipe" class="text-button danger-button" type="button">Pipe 삭제</button>
       </section>
 
@@ -310,7 +425,8 @@
           <svg id="demand-chart" role="img" aria-label="demand chart"></svg>
         </article>
       </section>
-    </main>
+      </main>
+    </section>
 
     <script src="./app.js"></script>
   </body>

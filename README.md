@@ -117,7 +117,22 @@ To test the first image-recognition pipeline for water-network drawings:
 streamlit run app/drawing_recognition_app.py
 ```
 
+For Streamlit Community Cloud, create a second app from the same GitHub repository and set its main file path to:
+
+```text
+app/drawing_recognition_app.py
+```
+
 This tool accepts `.jpg`, `.jpeg`, and `.png` drawings. It runs OpenCV first to extract line, node/symbol, and pipe candidates, then builds a first internal binary payload from that structure. Gemini Vision can be enabled from the sidebar when `GEMINI_API_KEY` or `GOOGLE_API_KEY` is configured, or when an API key is entered in the app.
+
+The recognition output also creates dashboard-ready asset candidates:
+
+- `recognized_network_assets.json`: nodes, pipes, virtual reservoir, and warnings.
+- `nodes.csv`: first-pass junction/reservoir coordinates for the HTML dashboard.
+- `pipes.csv`: first-pass pipe endpoints, length, diameter, material, and aging metadata.
+- `reservoirs.csv`: a virtual source reservoir for previewing the imported network.
+
+The image pipeline should be treated as a drafting assistant. OpenCV extracts geometry deterministically, Gemini provides semantic hints, and the resulting network should still be checked and edited on the dashboard before use.
 
 ## Dynamic Household Demand
 
