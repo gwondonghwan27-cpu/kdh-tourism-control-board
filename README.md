@@ -49,13 +49,32 @@ Available scenarios:
 - `suspected_leak`
 - `overpressure_aged`
 
-## Run The Dashboard
+## Run The HTML Dashboard
 
 ```bash
-streamlit run app/streamlit_app.py
+streamlit run streamlit_app.py
 ```
 
-The dashboard includes six tabs:
+This is the primary shareable dashboard. It embeds the same HTML, CSS, JavaScript, and mock CSV data used by the local static dashboard, so Streamlit users see the same water-network board rather than a separate Streamlit recreation.
+
+The dashboard includes:
+
+- 10-minute time playback with play and speed controls.
+- Demand, source-head, pump-head, and multi-leak scenario controls.
+- Editable junction and pipe assets.
+- CAD-like pipe drawing and deletion.
+- Leak pipe highlighting and per-pipe leak amounts.
+- Pipe flow direction, width-by-flow, pressure safety status, and zoomable network map.
+
+## Run The Legacy Streamlit Analysis App
+
+```bash
+streamlit run app/streamlit_legacy_app.py
+```
+
+This older Streamlit-native app is kept for analytical tabs and Python-side experiments. It does not match the current HTML dashboard screen.
+
+The legacy app includes six tabs:
 
 - Overview: node/pipe counts, minimum pressure, low-pressure count, high-risk pipe count, and top action.
 - Network Map: Plotly map with pipe aging color, node pressure status, valves, pumps, and pipe details.
@@ -65,9 +84,15 @@ The dashboard includes six tabs:
 - Live Control: interactively change time-step demand, source pressure, leak location, and leak magnitude, then see pressure and leak-suspect maps update.
 - Control Recommendation: ranked actions with expected effect and risks.
 
-## Run The Exact HTML Dashboard In Streamlit
+## Deploy The Exact HTML Dashboard In Streamlit
 
 To share the same interactive HTML dashboard through Streamlit, run:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+You can also run the explicit app file:
 
 ```bash
 streamlit run app/streamlit_html_dashboard.py
@@ -79,10 +104,20 @@ For Streamlit Community Cloud:
 
 1. Push this repository to GitHub.
 2. Create a new Streamlit app from the GitHub repository.
-3. Set the main file path to `app/streamlit_html_dashboard.py`.
+3. Set the main file path to `streamlit_app.py`.
 4. Let Streamlit install dependencies from `requirements.txt`.
 
 The embedded HTML dashboard currently uses the mock data bundled in this repository. Runtime edits inside the map are browser-session state, so they are useful for design simulation and demonstrations but are not persisted to a database yet.
+
+## Run JPG/PNG Drawing Recognition
+
+To test the first image-recognition pipeline for water-network drawings:
+
+```bash
+streamlit run app/drawing_recognition_app.py
+```
+
+This tool accepts `.jpg`, `.jpeg`, and `.png` drawings. It runs OpenCV first to extract line, node/symbol, and pipe candidates, then builds a first internal binary payload from that structure. Gemini Vision can be enabled from the sidebar when `GEMINI_API_KEY` or `GOOGLE_API_KEY` is configured, or when an API key is entered in the app.
 
 ## Dynamic Household Demand
 
@@ -157,7 +192,7 @@ Without screenshots, a successful run should show:
 ```bash
 python -m compileall app src
 python -m pytest
-streamlit run app/streamlit_app.py
+streamlit run streamlit_app.py
 ```
 
 ## Limitations
