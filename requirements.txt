@@ -6,6 +6,8 @@ plotly>=5.18
 streamlit>=1.31
 streamlit-plotly-events>=0.0.6
 pydantic>=2.5
+opencv-python-headless>=4.9
+google-genai>=1.0
 pytest>=8.0
 
 # Optional full EPANET/WNTR backend. The MVP ships with a deterministic fallback

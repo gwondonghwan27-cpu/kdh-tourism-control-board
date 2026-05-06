@@ -43,8 +43,19 @@ def main() -> None:
     st.markdown(
         """
         <style>
-          .block-container { padding: 0.75rem 0.75rem 1rem; max-width: 100%; }
+          .stApp { background: #f6f9fc; }
+          .block-container { padding: 0; max-width: 100%; }
           header[data-testid="stHeader"] { display: none; }
+          [data-testid="stToolbar"],
+          [data-testid="stDecoration"],
+          [data-testid="stStatusWidget"],
+          #MainMenu {
+            visibility: hidden;
+            height: 0;
+          }
+          iframe {
+            display: block;
+          }
           footer { display: none; }
         </style>
         """,

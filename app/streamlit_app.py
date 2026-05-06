@@ -74,6 +74,15 @@ class DashboardState:
 
 
 def main() -> None:
+    try:
+        from app.streamlit_html_dashboard import main as render_html_dashboard
+    except ModuleNotFoundError:
+        from streamlit_html_dashboard import main as render_html_dashboard
+
+    render_html_dashboard()
+
+
+def legacy_main() -> None:
     st.set_page_config(page_title="Aging Water Network", layout="wide")
     st.title("Aging-Aware Hydraulic Digital Twin")
     st.caption("Live-control simulator: demand, pressure, leak, and aging edits drive every panel.")
