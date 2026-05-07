@@ -1,27 +1,19 @@
-"""Serve the interactive HTML dashboard inside Streamlit."""
+"""Serve the interactive HTML dashboard inside Streamlit Cloud."""
 
 from __future__ import annotations
 
 import html
 import json
 import re
-import socket
-import subprocess
 import sys
-import time
-from functools import lru_cache
 from pathlib import Path
-from urllib.error import URLError
-from urllib.request import urlopen
+from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_DIR = REPO_ROOT / "frontend"
 MOCK_DATA_DIR = REPO_ROOT / "data" / "mock"
-DASHBOARD_HOST = "127.0.0.1"
-DASHBOARD_PORT = 5173
-DASHBOARD_URL = f"http://{DASHBOARD_HOST}:{DASHBOARD_PORT}/frontend/index.html"
-HEALTH_URL = f"http://{DASHBOARD_HOST}:{DASHBOARD_PORT}/api/health"
+SRC_DIR = REPO_ROOT / "src"
 
 
 CSV_FILES = [
@@ -39,6 +31,7 @@ def main() -> None:
     import streamlit as st
     import streamlit.components.v1 as components
 
+    ensure_src_path()
     st.set_page_config(
         page_title="상수관망 디지털 트윈",
         layout="wide",
@@ -48,15 +41,6 @@ def main() -> None:
     st.markdown(
         """
         <style>
-          html,
-          body,
-          .stApp,
-          [data-testid="stAppViewContainer"],
-          [data-testid="stMain"],
-          .block-container {
-            height: 100vh;
-            overflow: hidden;
-          }
           .stApp { background: #f6f9fc; }
           .block-container { padding: 0; max-width: 100%; }
           header[data-testid="stHeader"] { display: none; }
@@ -70,7 +54,6 @@ def main() -> None:
           iframe {
             display: block;
             width: 100%;
-            height: 100vh !important;
           }
           footer { display: none; }
         </style>
@@ -78,61 +61,66 @@ def main() -> None:
         unsafe_allow_html=True,
     )
 
-    server_ready = ensure_dashboard_server()
-    if server_ready:
-        components.iframe(DASHBOARD_URL, height=1000, scrolling=True)
-    else:
-        st.error("Could not start the local dashboard/API server.")
-        st.caption(f"Try running: {sys.executable} scripts/dashboard_server.py")
-
-
-@lru_cache(maxsize=1)
-def ensure_dashboard_server() -> bool:
-    if _healthcheck():
-        return True
-    if _port_is_busy(DASHBOARD_HOST, DASHBOARD_PORT):
-        return False
-    subprocess.Popen(
-        [
-            sys.executable,
-            str(REPO_ROOT / "scripts" / "dashboard_server.py"),
-            "--host",
-            DASHBOARD_HOST,
-            "--port",
-            str(DASHBOARD_PORT),
-        ],
-        cwd=REPO_ROOT,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        creationflags=_creation_flags(),
+    recognized_assets = render_streamlit_recognition_controls(st)
+    components.html(
+        build_dashboard_html(recognized_assets=recognized_assets),
+        height=2600,
+        scrolling=False,
     )
-    for _ in range(40):
-        if _healthcheck():
-            return True
-        time.sleep(0.1)
-    return False
 
 
-def _healthcheck() -> bool:
-    try:
-        with urlopen(HEALTH_URL, timeout=1) as response:
-            return response.status == 200
-    except (OSError, URLError):
-        return False
+def ensure_src_path() -> None:
+    if str(SRC_DIR) not in sys.path:
+        sys.path.insert(0, str(SRC_DIR))
 
 
-def _port_is_busy(host: str, port: int) -> bool:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.settimeout(0.3)
-        return sock.connect_ex((host, port)) == 0
+def render_streamlit_recognition_controls(st: Any) -> dict[str, Any] | None:
+    from aging_water_network.vision import analyze_drawing_image, build_dashboard_assets_from_recognition
+
+    st.sidebar.header("도면 인식")
+    uploaded = st.sidebar.file_uploader("JPG/PNG 관망도면", type=["jpg", "jpeg", "png"])
+    min_line_length = st.sidebar.slider("최소 선분 길이(px)", 10, 180, 35, 5)
+    merge_tolerance = st.sidebar.slider("끝점 병합 허용치(px)", 4, 42, 18, 1)
+    scale_m_per_px = st.sidebar.number_input("픽셀-미터 환산", min_value=0.01, max_value=20.0, value=1.0, step=0.05)
+    default_diameter_mm = st.sidebar.number_input("기본 관경(mm)", min_value=50.0, max_value=1200.0, value=150.0, step=10.0)
+    default_material = st.sidebar.selectbox("기본 재질", ["PVC", "HDPE", "ductile_iron", "steel", "cast_iron", "concrete"], index=0)
+    col_a, col_b = st.sidebar.columns(2)
+    analyze = col_a.button("도면 분석", type="primary", disabled=uploaded is None)
+    reset = col_b.button("초기화")
+
+    if reset:
+        st.session_state.pop("streamlit_recognized_assets", None)
+        st.session_state.pop("streamlit_recognition_summary", None)
+    if analyze and uploaded is not None:
+        image_bytes = uploaded.getvalue()
+        mime_type = "image/png" if uploaded.name.lower().endswith(".png") else "image/jpeg"
+        with st.spinner("도면 이미지를 인식하는 중입니다."):
+            result = analyze_drawing_image(
+                image_bytes,
+                mime_type,
+                min_line_length=min_line_length,
+                merge_tolerance_px=float(merge_tolerance),
+            )
+            assets = build_dashboard_assets_from_recognition(
+                result,
+                scale_m_per_px=scale_m_per_px,
+                default_diameter_mm=default_diameter_mm,
+                default_material=default_material,
+                include_virtual_reservoir=True,
+            )
+        st.session_state.streamlit_recognized_assets = assets.to_dict()
+        st.session_state.streamlit_recognition_summary = result.summary()
+
+    summary = st.session_state.get("streamlit_recognition_summary")
+    if summary:
+        st.sidebar.caption(
+            f"인식 결과: {summary['pipe_candidates']} pipes / "
+            f"{summary['node_candidates']} node candidates"
+        )
+    return st.session_state.get("streamlit_recognized_assets")
 
 
-def _creation_flags() -> int:
-    return subprocess.CREATE_NO_WINDOW if sys.platform.startswith("win") else 0
-
-
-@lru_cache(maxsize=1)
-def build_dashboard_html() -> str:
+def build_dashboard_html(recognized_assets: dict[str, Any] | None = None) -> str:
     index_html = read_text(FRONTEND_DIR / "index.html")
     css = read_text(FRONTEND_DIR / "styles.css")
     app_js = read_text(FRONTEND_DIR / "app.js")
@@ -160,6 +148,7 @@ def build_dashboard_html() -> str:
   <body>
     {body}
     <script>
+      window.__STREAMLIT_RECOGNIZED_ASSETS__ = {json.dumps(recognized_assets, ensure_ascii=False)};
       window.__STREAMLIT_MOCK_CSV__ = {json.dumps(csv_payload, ensure_ascii=False)};
       const __streamlitOriginalFetch = window.fetch ? window.fetch.bind(window) : null;
       window.fetch = async function(resource, options) {{

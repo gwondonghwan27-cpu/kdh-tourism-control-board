@@ -98,7 +98,7 @@ You can also run the explicit app file:
 streamlit run app/streamlit_html_dashboard.py
 ```
 
-This Streamlit entrypoint starts the local dashboard/API server from `scripts/dashboard_server.py` when needed, then embeds `http://127.0.0.1:5173/frontend/index.html` in an iframe. That keeps the Streamlit view aligned with the local HTML dashboard while preserving the `/api/recognize-drawing` endpoint used by the JPG/PNG recognition workflow.
+This Streamlit entrypoint embeds the HTML dashboard directly from `frontend/index.html`, `frontend/styles.css`, and `frontend/app.js`. On Streamlit Cloud, drawing recognition is handled directly by Streamlit/Python from the sidebar upload control, then injected into the embedded dashboard as recognized network assets. This avoids localhost iframe URLs such as `127.0.0.1:5173`, which are not reachable from mobile or public Streamlit sessions.
 
 You can also run the same server directly without Streamlit:
 

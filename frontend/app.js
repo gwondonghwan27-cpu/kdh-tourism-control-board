@@ -136,6 +136,7 @@ async function boot() {
   buildDemandIndex();
   initControls();
   render();
+  applyInjectedRecognitionAssets();
 }
 
 async function loadCsv(file) {
@@ -712,6 +713,22 @@ function applyRecognitionAssetsToDashboard(assets) {
   $("recognized-export-state").textContent = "관망맵 반영";
   updateDrawReadout("도면 인식 관망이 관망맵에 실시간 반영되었습니다. Pipe/Junction 패널에서 세부 값을 편집하세요.");
   render();
+}
+
+function applyInjectedRecognitionAssets() {
+  const assets = window.__STREAMLIT_RECOGNIZED_ASSETS__;
+  if (!assets || window.__STREAMLIT_RECOGNIZED_ASSETS_APPLIED__) return;
+  window.__STREAMLIT_RECOGNIZED_ASSETS_APPLIED__ = true;
+  state.drawingAssets = assets;
+  renderRecognitionTable("recognized-nodes-table", assets.nodes || [], ["node_id", "x", "y", "node_type", "dma_id"]);
+  renderRecognitionTable("recognized-pipes-table", assets.pipes || [], ["pipe_id", "from_node", "to_node", "length_m", "diameter_mm", "material"]);
+  $("recognized-pipe-count").textContent = assets.pipes?.length || 0;
+  $("recognized-node-count").textContent = Math.max((assets.nodes?.length || 0) - (assets.reservoirs?.length || 0), 0);
+  $("recognized-export-state").textContent = "Streamlit 반영";
+  updateRecognitionStatus("streamlit analysis ready", `${assets.pipes?.length || 0} pipes / ${assets.nodes?.length || 0} nodes`);
+  toggleRecognitionDownloads(Boolean(assets.nodes?.length && assets.pipes?.length));
+  applyRecognitionAssetsToDashboard(assets);
+  setAppView("dashboard");
 }
 
 function fitMapToCurrentNetwork() {

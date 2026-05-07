@@ -29,6 +29,13 @@ from aging_water_network.vision import (  # noqa: E402
 class DashboardRequestHandler(BaseHTTPRequestHandler):
     server_version = "WaterNetworkDashboard/0.1"
 
+    def do_HEAD(self) -> None:  # noqa: N802 - stdlib hook
+        route = unquote(urlparse(self.path).path)
+        if route == "/api/health":
+            self._send_json({"ok": True}, include_body=False)
+            return
+        self._serve_static(route, include_body=False)
+
     def do_GET(self) -> None:  # noqa: N802 - stdlib hook
         route = unquote(urlparse(self.path).path)
         if route == "/api/health":
@@ -60,7 +67,7 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             raise ValueError("request body must be a JSON object")
         return parsed
 
-    def _serve_static(self, route: str) -> None:
+    def _serve_static(self, route: str, *, include_body: bool = True) -> None:
         if route == "/":
             route = "/frontend/index.html"
         relative_path = Path(route.lstrip("/"))
@@ -76,15 +83,23 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
         self.send_header("content-type", content_type)
         self.send_header("content-length", str(len(body)))
         self.end_headers()
-        self.wfile.write(body)
+        if include_body:
+            self.wfile.write(body)
 
-    def _send_json(self, payload: dict[str, Any], *, status: HTTPStatus = HTTPStatus.OK) -> None:
+    def _send_json(
+        self,
+        payload: dict[str, Any],
+        *,
+        status: HTTPStatus = HTTPStatus.OK,
+        include_body: bool = True,
+    ) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("content-type", "application/json;charset=utf-8")
         self.send_header("content-length", str(len(body)))
         self.end_headers()
-        self.wfile.write(body)
+        if include_body:
+            self.wfile.write(body)
 
 
 def _recognize_drawing(request: dict[str, Any]) -> dict[str, Any]:
