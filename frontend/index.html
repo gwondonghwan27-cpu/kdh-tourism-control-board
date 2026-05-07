@@ -243,11 +243,12 @@
         </div>
 
         <aside class="side-panel">
-          <div class="editor-shell">
-            <div class="editor-tabs" aria-label="asset editor tabs">
-              <button class="editor-tab active" data-editor-tab="leak" type="button">누수</button>
+            <div class="editor-shell">
+              <div class="editor-tabs" aria-label="asset editor tabs">
+              <button class="editor-tab active" data-editor-tab="source" type="button">Source/Pump</button>
               <button class="editor-tab" data-editor-tab="junction" type="button">Junction</button>
               <button class="editor-tab" data-editor-tab="pipe" type="button">Pipe</button>
+              <button class="editor-tab" data-editor-tab="leak" type="button">누수</button>
             </div>
 
             <div class="editor-context">
@@ -255,11 +256,52 @@
               <span id="editor-context-subtitle">지도에서 자산을 선택하거나 작업 모드를 실행하세요.</span>
             </div>
 
-            <section class="editor-panel active" data-editor-panel="leak" aria-label="multi leak scenario">
+            <section class="editor-panel active" data-editor-panel="source" aria-label="source and pump editor">
               <div class="section-heading">
-                <h2>다중 누수 시나리오</h2>
+                <h2>Source/Pump 생성</h2>
               </div>
-              <div id="leak-list" class="leak-list"></div>
+              <div class="source-editor">
+                <label>
+                  선택 Source/Pump
+                  <select id="selected-source"></select>
+                </label>
+                <label>
+                  연결 Junction
+                  <select id="source-connect-junction"></select>
+                </label>
+                <label>
+                  Source ID
+                  <input id="new-source-id" type="text" value="R_NEW_1" />
+                </label>
+                <label>
+                  X 좌표
+                  <input id="source-x" type="number" step="5" value="-120" />
+                </label>
+                <label>
+                  Y 좌표
+                  <input id="source-y" type="number" step="5" value="0" />
+                </label>
+                <label>
+                  공급 수두
+                  <input id="source-design-head" type="range" min="30" max="95" step="0.5" value="58" />
+                  <span id="source-design-head-value">58.0 m</span>
+                </label>
+                <label>
+                  Pump 가압
+                  <input id="source-pump-gain" type="range" min="0" max="35" step="0.5" value="3" />
+                  <span id="source-pump-gain-value">3.0 m</span>
+                </label>
+                <label>
+                  연결 Pipe 관경
+                  <input id="source-pipe-diameter" type="range" min="100" max="800" step="10" value="300" />
+                  <span id="source-pipe-diameter-value">300 mm</span>
+                </label>
+                <div class="draw-readout" id="source-readout">Source/Pump는 선택 Junction에 공급원과 연결 Pipe를 함께 추가합니다.</div>
+                <div class="source-actions">
+                  <button id="add-source-pump" class="primary-button" type="button">Source/Pump 추가</button>
+                  <button id="delete-source-pump" class="text-button danger-button" type="button">Source/Pump 삭제</button>
+                </div>
+              </div>
             </section>
 
             <section class="editor-panel" data-editor-panel="junction" aria-label="junction editor">
@@ -390,6 +432,13 @@
                   <button id="reset-pipe-edit" class="text-button" type="button">Pipe 복원</button>
                 </div>
               </div>
+            </section>
+
+            <section class="editor-panel" data-editor-panel="leak" aria-label="multi leak scenario">
+              <div class="section-heading">
+                <h2>다중 누수 시나리오</h2>
+              </div>
+              <div id="leak-list" class="leak-list"></div>
             </section>
           </div>
 

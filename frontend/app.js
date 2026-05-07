@@ -70,7 +70,7 @@ const state = {
   originalNodeGeometry: new Map(),
   aging: new Map(),
   selected: null,
-  editorTab: "leak",
+  editorTab: "source",
   addMode: false,
   pipeDrawMode: false,
   pendingJunction: null,
@@ -168,11 +168,18 @@ function initControls() {
   $("selected-pipe").value = $("leak-pipe").value;
   $("selected-junction").value = firstJunctionId();
   $("source-junction").value = firstJunctionId();
+  $("source-connect-junction").value = firstJunctionId();
+  $("selected-source").value = firstSourceId();
+  $("new-source-id").value = nextSourceId();
 
   const reservoirHead = Number(state.reservoirs[0]?.head_m || 58);
   const pump = state.pumps.find((item) => String(item.status || "on").toLowerCase() !== "off");
   $("source-head").value = reservoirHead;
   $("pump-head").value = pump ? Number(pump.base_head_gain_m || 0) * Number(pump.speed_multiplier || 1) : 0;
+  $("source-design-head").value = reservoirHead;
+  $("source-pump-gain").value = $("pump-head").value;
+  syncSourceControlLabels();
+  suggestSourcePumpPosition();
 
   ["time-slider", "demand-scale", "source-head", "pump-head", "leak-pipe", "leak-demand"].forEach((id) => {
     $(id).addEventListener("input", render);
@@ -194,6 +201,9 @@ function initControls() {
   });
   ["junction-x", "junction-y", "junction-elevation", "junction-demand", "junction-dma"].forEach((id) => {
     $(id).addEventListener("input", updateJunctionEditFromControls);
+  });
+  ["source-design-head", "source-pump-gain", "source-pipe-diameter"].forEach((id) => {
+    $(id).addEventListener("input", syncSourceControlLabels);
   });
 
   document.querySelectorAll("[data-angle]").forEach((button) => {
@@ -225,6 +235,8 @@ function initControls() {
   $("delete-pipe").addEventListener("click", deleteSelectedPipe);
   $("delete-junction").addEventListener("click", deleteSelectedJunction);
   $("reset-junction-edit").addEventListener("click", resetSelectedJunctionEdit);
+  $("add-source-pump").addEventListener("click", addSourcePump);
+  $("delete-source-pump").addEventListener("click", deleteSelectedSourcePump);
   $("source-junction").addEventListener("input", () => {
     if (state.addMode || state.pipeDrawMode) {
       state.pendingJunction = null;
@@ -233,6 +245,8 @@ function initControls() {
       render();
     }
   });
+  $("source-connect-junction").addEventListener("input", suggestSourcePumpPosition);
+  $("selected-source").addEventListener("input", () => selectSourcePump($("selected-source").value));
   $("selected-pipe").addEventListener("input", () => selectPipe($("selected-pipe").value));
   $("selected-junction").addEventListener("input", () => selectNode($("selected-junction").value));
   $("pipe-tool").addEventListener("click", () => selectPipe($("selected-pipe").value));
@@ -647,6 +661,7 @@ function render() {
 
   syncPipeEditor();
   syncJunctionEditor();
+  syncSourceControlLabels();
   syncDrawWorkflow();
   syncEditorConsole();
   renderMap(snapshot);
@@ -663,7 +678,10 @@ function refreshAssetOptions() {
   const previousLeak = $("leak-pipe").value;
   const previousNode = $("selected-junction").value;
   const previousSource = $("source-junction").value;
+  const previousSourceConnect = $("source-connect-junction").value;
+  const previousSelectedSource = $("selected-source").value;
   const junctions = state.nodes.filter((node) => node.node_type !== "reservoir");
+  const sources = state.nodes.filter((node) => node.node_type === "reservoir");
 
   $("leak-pipe").innerHTML = state.pipes.map((pipe) => `<option value="${pipe.pipe_id}">${pipe.pipe_id}</option>`).join("");
   $("selected-pipe").innerHTML = state.pipes
@@ -671,11 +689,15 @@ function refreshAssetOptions() {
     .join("");
   $("selected-junction").innerHTML = junctions.map((node) => `<option value="${node.node_id}">${node.node_id} · ${node.dma_id}</option>`).join("");
   $("source-junction").innerHTML = junctions.map((node) => `<option value="${node.node_id}">${node.node_id} · ${node.dma_id}</option>`).join("");
+  $("source-connect-junction").innerHTML = junctions.map((node) => `<option value="${node.node_id}">${node.node_id} · ${node.dma_id}</option>`).join("");
+  $("selected-source").innerHTML = sources.map((node) => `<option value="${node.node_id}">${node.node_id} · ${node.dma_id}</option>`).join("");
 
   keepSelectValue("selected-pipe", previousPipe || state.pipes[0]?.pipe_id || "");
   keepSelectValue("leak-pipe", previousLeak || state.pipes[0]?.pipe_id || "");
   keepSelectValue("selected-junction", previousNode || firstJunctionId());
   keepSelectValue("source-junction", previousSource || firstJunctionId());
+  keepSelectValue("source-connect-junction", previousSourceConnect || firstJunctionId());
+  keepSelectValue("selected-source", previousSelectedSource || firstSourceId());
 }
 
 function keepSelectValue(id, value) {
@@ -696,18 +718,24 @@ function syncEditorConsole() {
     panel.classList.toggle("active", panel.dataset.editorPanel === state.editorTab);
   });
   const [kind, id] = (state.selected || "").split(":");
-  const modeLabel = state.addMode ? "Junction 생성 중" : state.pipeDrawMode ? "Pipe 그리기 중" : kind === "node" ? "Junction 편집 중" : kind === "pipe" ? "Pipe 편집 중" : "시나리오 편집 중";
+  const modeLabel = state.addMode ? "Junction 생성 중" : state.pipeDrawMode ? "Pipe 그리기 중" : state.editorTab === "source" ? "Source/Pump 편집 중" : kind === "node" ? "Junction 편집 중" : kind === "pipe" ? "Pipe 편집 중" : "시나리오 편집 중";
   $("editor-context-title").textContent = modeLabel;
   $("editor-context-subtitle").textContent =
     state.editorTab === "leak"
       ? `${activeLeakDemands().size}개 누수 지점 활성`
       : state.editorTab === "junction"
         ? `${id || firstJunctionId()} 좌표·표고·수요 편집`
-        : `${id || selectedPipeId()} 길이·각도·관경·부속 설계`;
+        : state.editorTab === "source"
+          ? `현재 Source ${state.reservoirs[0]?.node_id || "없음"} · 공급원/Pump 추가`
+          : `${id || selectedPipeId()} 길이·각도·관경·부속 설계`;
 }
 
 function firstJunctionId() {
   return state.nodes.find((node) => node.node_type !== "reservoir")?.node_id || "";
+}
+
+function firstSourceId() {
+  return state.nodes.find((node) => node.node_type === "reservoir")?.node_id || "";
 }
 
 function computeSnapshot() {
@@ -1408,6 +1436,133 @@ function deleteSelectedJunction() {
   render();
 }
 
+function addSourcePump() {
+  const targetId = $("source-connect-junction").value || firstJunctionId();
+  const target = state.nodes.find((node) => node.node_id === targetId && node.node_type !== "reservoir");
+  if (!target) {
+    $("source-readout").textContent = "연결할 Junction을 먼저 선택하세요.";
+    return;
+  }
+  const sourceId = uniqueSourceId($("new-source-id").value.trim() || nextSourceId());
+  const sourceNode = {
+    node_id: sourceId,
+    x: Number($("source-x").value || target.x - 120),
+    y: Number($("source-y").value || target.y),
+    elevation_m: Math.max(Number(target.elevation_m || 30) + 5, 0),
+    base_demand_lps: 0,
+    node_type: "reservoir",
+    dma_id: "SOURCE",
+  };
+  const reservoir = {
+    node_id: sourceId,
+    head_m: Number($("source-design-head").value || 58),
+  };
+  const pipeId = nextPipeId();
+  const pipe = {
+    pipe_id: pipeId,
+    from_node: sourceId,
+    to_node: targetId,
+    length_m: distanceBetween(sourceNode, target),
+    diameter_mm: Number($("source-pipe-diameter").value || 300),
+    material: "ductile_iron",
+    service_type: "transmission",
+    install_year: CURRENT_YEAR,
+    repair_count: 0,
+    leak_history_count: 0,
+    bend_count: 0,
+    valve_count: 0,
+    bend_angle_deg: 0,
+    soil_ph: 7,
+    soil_resistivity_ohm_cm: 3000,
+    traffic_load_index: 0.2,
+    burst_history_count: 0,
+    editable_geometry: true,
+  };
+  const pump = {
+    pump_id: `PU_${sourceId}`,
+    from_node: sourceId,
+    to_node: targetId,
+    base_head_gain_m: Number($("source-pump-gain").value || 0),
+    speed_multiplier: 1,
+    status: "on",
+  };
+
+  state.nodes.unshift(sourceNode);
+  state.reservoirs.unshift(reservoir);
+  state.pumps.unshift(pump);
+  state.pipes.unshift(pipe);
+  state.baseNodeGeometry.set(sourceId, baseNodeState(sourceNode));
+  state.originalNodeGeometry.set(sourceId, baseNodeState(sourceNode));
+  state.pipeEdits.set(pipeId, {
+    angle_deg: angleBetween(sourceNode, target),
+    length_m: pipe.length_m,
+    diameter_mm: pipe.diameter_mm,
+    roughness_c: Number($("pipe-roughness").value || 100),
+    minor_loss_k: 0,
+    bend_angle_deg: 0,
+    bend_count: 0,
+    valve_count: 0,
+    material: pipe.material,
+    service_type: pipe.service_type,
+  });
+  state.aging.set(pipeId, agingScore(pipe));
+  $("source-head").value = reservoir.head_m;
+  $("pump-head").value = pump.base_head_gain_m;
+  $("new-source-id").value = nextSourceId();
+  state.selected = `pipe:${pipeId}`;
+  state.editorTab = "pipe";
+  fitMapToCurrentNetwork();
+  refreshAssetOptions();
+  $("selected-pipe").value = pipeId;
+  $("source-readout").textContent = `${sourceId} Source/Pump 추가 완료 · ${sourceId} → ${targetId} · Pipe ${pipeId}`;
+  render();
+}
+
+function deleteSelectedSourcePump() {
+  const sourceId = $("selected-source").value || (state.selected?.startsWith("node:") ? state.selected.split(":")[1] : "");
+  const sourceNode = state.nodes.find((node) => node.node_id === sourceId && node.node_type === "reservoir");
+  if (!sourceNode) {
+    $("source-readout").textContent = "삭제할 Source/Pump를 선택하세요.";
+    return;
+  }
+  const sources = state.nodes.filter((node) => node.node_type === "reservoir");
+  if (sources.length <= 1) {
+    $("source-readout").textContent = "마지막 Source/Pump는 삭제할 수 없습니다. 새 Source/Pump를 먼저 추가하세요.";
+    return;
+  }
+  const connectedPipes = state.pipes.filter((pipe) => pipe.from_node === sourceId || pipe.to_node === sourceId);
+  const connectedPipeIds = new Set(connectedPipes.map((pipe) => pipe.pipe_id));
+  const message = connectedPipes.length
+    ? `${sourceId} Source/Pump와 연결된 Pipe ${connectedPipes.length}개도 함께 삭제됩니다. 계속할까요?`
+    : `${sourceId} Source/Pump를 삭제할까요?`;
+  if (!window.confirm(message)) return;
+
+  state.nodes = state.nodes.filter((node) => node.node_id !== sourceId);
+  state.reservoirs = state.reservoirs.filter((reservoir) => reservoir.node_id !== sourceId);
+  state.pumps = state.pumps.filter((pump) => pump.from_node !== sourceId && pump.to_node !== sourceId);
+  state.pipes = state.pipes.filter((pipe) => !connectedPipeIds.has(pipe.pipe_id));
+  state.valves = state.valves.filter((valve) => !connectedPipeIds.has(valve.pipe_id));
+  state.baseNodeGeometry.delete(sourceId);
+  state.originalNodeGeometry.delete(sourceId);
+  for (const pipeId of connectedPipeIds) {
+    state.pipeEdits.delete(pipeId);
+    state.aging.delete(pipeId);
+    state.leakDemands.delete(pipeId);
+  }
+
+  state.selected = `node:${firstSourceId()}`;
+  state.editorTab = "source";
+  refreshAssetOptions();
+  const nextSource = firstSourceId();
+  if (nextSource) $("selected-source").value = nextSource;
+  $("source-head").value = Number(state.reservoirs[0]?.head_m || 58);
+  const pump = state.pumps.find((item) => String(item.status || "on").toLowerCase() !== "off");
+  $("pump-head").value = pump ? Number(pump.base_head_gain_m || 0) * Number(pump.speed_multiplier || 1) : 0;
+  $("source-readout").textContent = `삭제 완료: ${sourceId} · 연결 Pipe ${connectedPipeIds.size}개 정리`;
+  fitMapToCurrentNetwork();
+  render();
+}
+
 function makePipe(pipeId, fromNode, toNode, source, target) {
   return {
     pipe_id: pipeId,
@@ -1835,6 +1990,21 @@ function syncJunctionControlLabels() {
   $("junction-demand-value").textContent = `${Number($("junction-demand").value || 0).toFixed(2)} L/s`;
 }
 
+function syncSourceControlLabels() {
+  $("source-design-head-value").textContent = `${Number($("source-design-head").value || 0).toFixed(1)} m`;
+  $("source-pump-gain-value").textContent = `${Number($("source-pump-gain").value || 0).toFixed(1)} m`;
+  $("source-pipe-diameter-value").textContent = `${Math.round(Number($("source-pipe-diameter").value || 0))} mm`;
+}
+
+function suggestSourcePumpPosition() {
+  const target = state.nodes.find((node) => node.node_id === $("source-connect-junction").value);
+  if (!target) return;
+  $("source-x").value = Math.round(Number(target.x || 0) - 120);
+  $("source-y").value = Math.round(Number(target.y || 0));
+  $("new-source-id").value = nextSourceId();
+  $("source-readout").textContent = `${target.node_id}에 연결할 Source/Pump 위치를 제안했습니다. 필요하면 X/Y를 직접 조정하세요.`;
+}
+
 function updateJunctionEditFromControls() {
   const node = selectedJunction();
   if (!node || node.node_type === "reservoir") return;
@@ -1934,9 +2104,32 @@ function selectPipe(pipeId) {
 }
 
 function selectNode(nodeId) {
+  const node = state.nodes.find((item) => item.node_id === nodeId);
+  if (node?.node_type === "reservoir") {
+    state.selected = `node:${nodeId}`;
+    state.editorTab = "source";
+    if ($("selected-source").querySelector(`option[value="${nodeId}"]`)) $("selected-source").value = nodeId;
+    $("source-readout").textContent = `${nodeId} Source가 선택되었습니다. 새 Source/Pump를 추가하려면 연결 Junction을 선택하세요.`;
+    render();
+    return;
+  }
   state.selected = `node:${nodeId}`;
   state.editorTab = "junction";
   if ($("selected-junction").querySelector(`option[value="${nodeId}"]`)) $("selected-junction").value = nodeId;
+  render();
+}
+
+function selectSourcePump(sourceId) {
+  if (!sourceId) return;
+  state.selected = `node:${sourceId}`;
+  state.editorTab = "source";
+  $("selected-source").value = sourceId;
+  const reservoir = state.reservoirs.find((item) => item.node_id === sourceId);
+  const pump = state.pumps.find((item) => item.from_node === sourceId || item.to_node === sourceId);
+  if (reservoir) $("source-design-head").value = Number(reservoir.head_m || 58);
+  if (pump) $("source-pump-gain").value = Number(pump.base_head_gain_m || 0) * Number(pump.speed_multiplier || 1);
+  syncSourceControlLabels();
+  $("source-readout").textContent = `${sourceId} Source/Pump가 선택되었습니다. 삭제하거나 새 Source/Pump를 추가할 수 있습니다.`;
   render();
 }
 
@@ -2049,8 +2242,22 @@ function nextPipeId() {
   return `P_NEW_${index}`;
 }
 
+function nextSourceId() {
+  let index = state.nodes.filter((node) => String(node.node_id).startsWith("R_NEW_")).length + 1;
+  while (state.nodes.some((node) => node.node_id === `R_NEW_${index}`)) index += 1;
+  return `R_NEW_${index}`;
+}
+
 function uniqueNodeId(preferredId) {
   const base = preferredId || nextJunctionId();
+  if (!state.nodes.some((node) => node.node_id === base)) return base;
+  let index = 2;
+  while (state.nodes.some((node) => node.node_id === `${base}_${index}`)) index += 1;
+  return `${base}_${index}`;
+}
+
+function uniqueSourceId(preferredId) {
+  const base = preferredId || nextSourceId();
   if (!state.nodes.some((node) => node.node_id === base)) return base;
   let index = 2;
   while (state.nodes.some((node) => node.node_id === `${base}_${index}`)) index += 1;
