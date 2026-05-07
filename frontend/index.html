@@ -153,6 +153,14 @@
 
       <section class="control-band" aria-label="hydraulic scenario controls">
         <label>
+          시간대별 수요
+          <select id="demand-profile">
+            <option value="metro">대도시</option>
+            <option value="midsize">중소도시</option>
+            <option value="rural">농촌</option>
+          </select>
+        </label>
+        <label>
           수요 배율
           <input id="demand-scale" type="range" min="0.7" max="1.8" step="0.05" value="1" />
           <span id="demand-scale-value">1.00x</span>

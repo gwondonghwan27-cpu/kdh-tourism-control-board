@@ -15,6 +15,10 @@ const mime = {
 http
   .createServer((request, response) => {
     let route = decodeURIComponent(request.url.split("?")[0]);
+    if (request.method === "GET" && route === "/api/health") {
+      sendJson(response, 200, { ok: true });
+      return;
+    }
     if (request.method === "POST" && route === "/api/recognize-drawing") {
       handleDrawingRecognition(request, response);
       return;

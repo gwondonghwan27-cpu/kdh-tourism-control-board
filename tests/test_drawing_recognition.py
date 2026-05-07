@@ -66,3 +66,42 @@ def test_recognition_result_exports_dashboard_assets():
     assert {"node_id", "x", "y", "node_type"}.issubset(assets.nodes[0])
     assert {"pipe_id", "from_node", "to_node", "length_m", "diameter_mm"}.issubset(assets.pipes[0])
     assert assets.reservoirs
+
+
+def test_blue_jpg_drawing_uses_color_masks_to_avoid_background_noise():
+    cv2 = pytest.importorskip("cv2")
+    canvas = np.full((360, 520, 3), 250, dtype=np.uint8)
+    for x in range(20, 500, 25):
+        cv2.line(canvas, (x, 20), (x, 340), (232, 236, 240), 1)
+    for y in range(20, 340, 25):
+        cv2.line(canvas, (20, y), (500, y), (232, 236, 240), 1)
+    cv2.line(canvas, (40, 180), (480, 195), (215, 210, 198), 22)
+    blue = (178, 112, 24)
+    pipes = [
+        ((70, 170), (160, 165)),
+        ((160, 165), (260, 190)),
+        ((260, 190), (360, 178)),
+        ((360, 178), (455, 155)),
+        ((160, 165), (145, 270)),
+        ((260, 190), (245, 285)),
+        ((360, 178), (395, 275)),
+    ]
+    nodes = [(70, 170), (160, 165), (260, 190), (360, 178), (455, 155), (145, 270), (245, 285), (395, 275)]
+    for start, end in pipes:
+        cv2.line(canvas, start, end, blue, 8)
+        cv2.line(canvas, start, end, (245, 250, 255), 1)
+    for index, point in enumerate(nodes, 1):
+        cv2.circle(canvas, point, 10, (255, 255, 255), -1)
+        cv2.circle(canvas, point, 10, (72, 145, 80), 2)
+        cv2.putText(canvas, f"J-{index:02d}", (point[0] + 10, point[1] - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (35, 45, 55), 1)
+    cv2.putText(canvas, "D250 MAIN", (210, 160), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (50, 90, 125), 1)
+    ok, encoded = cv2.imencode(".jpg", canvas, [int(cv2.IMWRITE_JPEG_QUALITY), 94])
+    assert ok
+
+    result = analyze_drawing_image(encoded.tobytes(), "image/jpeg", min_line_length=30)
+    assets = build_dashboard_assets_from_recognition(result)
+
+    assert 4 <= len(result.node_candidates) <= len(nodes)
+    assert len(result.pipe_candidates) <= len(pipes) + 2
+    assert len(assets.nodes) <= len(nodes) + len(assets.reservoirs)
+    assert len(assets.pipes) <= len(pipes) + len(assets.reservoirs) + 2

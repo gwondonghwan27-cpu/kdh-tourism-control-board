@@ -1,22 +1,27 @@
-"""Serve the interactive HTML dashboard inside Streamlit.
-
-This app intentionally reuses the static frontend files instead of rebuilding the
-dashboard with Streamlit widgets. That keeps the Streamlit deployment visually
-and behaviorally aligned with ``frontend/index.html``.
-"""
+"""Serve the interactive HTML dashboard inside Streamlit."""
 
 from __future__ import annotations
 
 import html
 import json
 import re
+import socket
+import subprocess
+import sys
+import time
 from functools import lru_cache
 from pathlib import Path
+from urllib.error import URLError
+from urllib.request import urlopen
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_DIR = REPO_ROOT / "frontend"
 MOCK_DATA_DIR = REPO_ROOT / "data" / "mock"
+DASHBOARD_HOST = "127.0.0.1"
+DASHBOARD_PORT = 5173
+DASHBOARD_URL = f"http://{DASHBOARD_HOST}:{DASHBOARD_PORT}/frontend/index.html"
+HEALTH_URL = f"http://{DASHBOARD_HOST}:{DASHBOARD_PORT}/api/health"
 
 
 CSV_FILES = [
@@ -43,6 +48,15 @@ def main() -> None:
     st.markdown(
         """
         <style>
+          html,
+          body,
+          .stApp,
+          [data-testid="stAppViewContainer"],
+          [data-testid="stMain"],
+          .block-container {
+            height: 100vh;
+            overflow: hidden;
+          }
           .stApp { background: #f6f9fc; }
           .block-container { padding: 0; max-width: 100%; }
           header[data-testid="stHeader"] { display: none; }
@@ -55,6 +69,8 @@ def main() -> None:
           }
           iframe {
             display: block;
+            width: 100%;
+            height: 100vh !important;
           }
           footer { display: none; }
         </style>
@@ -62,7 +78,57 @@ def main() -> None:
         unsafe_allow_html=True,
     )
 
-    components.html(build_dashboard_html(), height=2500, scrolling=True)
+    server_ready = ensure_dashboard_server()
+    if server_ready:
+        components.iframe(DASHBOARD_URL, height=1000, scrolling=True)
+    else:
+        st.error("Could not start the local dashboard/API server.")
+        st.caption(f"Try running: {sys.executable} scripts/dashboard_server.py")
+
+
+@lru_cache(maxsize=1)
+def ensure_dashboard_server() -> bool:
+    if _healthcheck():
+        return True
+    if _port_is_busy(DASHBOARD_HOST, DASHBOARD_PORT):
+        return False
+    subprocess.Popen(
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "dashboard_server.py"),
+            "--host",
+            DASHBOARD_HOST,
+            "--port",
+            str(DASHBOARD_PORT),
+        ],
+        cwd=REPO_ROOT,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=_creation_flags(),
+    )
+    for _ in range(40):
+        if _healthcheck():
+            return True
+        time.sleep(0.1)
+    return False
+
+
+def _healthcheck() -> bool:
+    try:
+        with urlopen(HEALTH_URL, timeout=1) as response:
+            return response.status == 200
+    except (OSError, URLError):
+        return False
+
+
+def _port_is_busy(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(0.3)
+        return sock.connect_ex((host, port)) == 0
+
+
+def _creation_flags() -> int:
+    return subprocess.CREATE_NO_WINDOW if sys.platform.startswith("win") else 0
 
 
 @lru_cache(maxsize=1)

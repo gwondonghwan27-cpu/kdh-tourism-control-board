@@ -98,7 +98,13 @@ You can also run the explicit app file:
 streamlit run app/streamlit_html_dashboard.py
 ```
 
-This Streamlit entrypoint embeds the current static dashboard from `frontend/index.html`, `frontend/styles.css`, `frontend/app.js`, and the mock CSV files under `data/mock`. It is meant for Streamlit Community Cloud or any Streamlit server where other users should see the same dashboard UI that is available from the local HTML version.
+This Streamlit entrypoint starts the local dashboard/API server from `scripts/dashboard_server.py` when needed, then embeds `http://127.0.0.1:5173/frontend/index.html` in an iframe. That keeps the Streamlit view aligned with the local HTML dashboard while preserving the `/api/recognize-drawing` endpoint used by the JPG/PNG recognition workflow.
+
+You can also run the same server directly without Streamlit:
+
+```bash
+python scripts/dashboard_server.py
+```
 
 For Streamlit Community Cloud:
 

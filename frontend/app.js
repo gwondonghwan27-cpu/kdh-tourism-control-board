@@ -44,6 +44,21 @@ const designLife = {
   unknown: 70,
 };
 
+const demandProfiles = {
+  metro: {
+    label: "대도시",
+    multipliers: [0.52, 0.46, 0.42, 0.4, 0.48, 0.78, 1.18, 1.38, 1.26, 1.08, 1.0, 1.04, 1.12, 1.06, 0.98, 0.96, 1.05, 1.24, 1.42, 1.32, 1.12, 0.9, 0.72, 0.6],
+  },
+  midsize: {
+    label: "중소도시",
+    multipliers: [0.5, 0.44, 0.4, 0.38, 0.46, 0.72, 1.08, 1.28, 1.2, 1.04, 0.96, 1.0, 1.1, 1.04, 0.96, 0.94, 1.02, 1.18, 1.3, 1.2, 1.02, 0.84, 0.68, 0.58],
+  },
+  rural: {
+    label: "농촌",
+    multipliers: [0.42, 0.36, 0.34, 0.34, 0.44, 0.82, 1.3, 1.44, 1.18, 0.94, 0.84, 0.88, 0.98, 0.94, 0.9, 0.96, 1.12, 1.36, 1.48, 1.18, 0.9, 0.68, 0.54, 0.46],
+  },
+};
+
 const weights = {
   age: 0.2,
   material: 0.16,
@@ -62,6 +77,7 @@ const state = {
   valves: [],
   households: [],
   demandSeries: [],
+  demandProfile: "metro",
   initialData: null,
   demandByMinute: new Map(),
   timeline: [],
@@ -196,7 +212,7 @@ function initControls() {
   syncSourceControlLabels();
   suggestSourcePumpPosition();
 
-  ["time-slider", "demand-scale", "source-head", "pump-head", "leak-pipe", "leak-demand"].forEach((id) => {
+  ["time-slider", "demand-profile", "demand-scale", "source-head", "pump-head", "leak-pipe", "leak-demand"].forEach((id) => {
     $(id).addEventListener("input", render);
   });
 
@@ -393,6 +409,7 @@ function syncDashboardControlsAfterNetworkRestore() {
   if ($("source-design-head")) $("source-design-head").value = reservoirHead;
   if ($("pump-head")) $("pump-head").value = pump ? Number(pump.base_head_gain_m || 0) * Number(pump.speed_multiplier || 1) : 0;
   if ($("source-pump-gain")) $("source-pump-gain").value = $("pump-head")?.value || 0;
+  if ($("demand-profile")) $("demand-profile").value = state.demandProfile || "metro";
   if ($("leak-demand")) $("leak-demand").value = 2;
   if ($("time-slider")) $("time-slider").value = Math.min(42, state.timeline.length - 1);
   syncSourceControlLabels();
@@ -778,6 +795,7 @@ function render() {
 
   $("time-label").textContent = formatMinute(selectedMinute);
   $("timeline-title").textContent = `${formatMinute(selectedMinute)} 관망 상태`;
+  state.demandProfile = $("demand-profile")?.value || state.demandProfile || "metro";
   $("demand-scale-value").textContent = `${Number($("demand-scale").value).toFixed(2)}x`;
   $("source-head-value").textContent = `${Number($("source-head").value).toFixed(1)} m`;
   $("pump-head-value").textContent = `${Number($("pump-head").value).toFixed(1)} m`;
@@ -1003,6 +1021,8 @@ function leakPenaltyAtNode(nodeId, leakDemands = activeLeakDemands()) {
 }
 
 function nodeDemandAt(minute) {
+  const profileId = $("demand-profile")?.value || state.demandProfile || "metro";
+  if (demandProfiles[profileId]) return genericNodeDemandAt(minute, profileId);
   if (!state.demandByMinute.size) {
     return new Map(state.nodes.map((node) => [node.node_id, node.base_demand_lps || 0]));
   }
@@ -1013,6 +1033,27 @@ function nodeDemandAt(minute) {
     return candidateDistance < bestDistance ? candidate : best;
   }, available[0]);
   return state.demandByMinute.get(nearest) || new Map();
+}
+
+function genericNodeDemandAt(minute, profileId) {
+  const factor = demandProfileFactor(minute, profileId);
+  return new Map(
+    state.nodes.map((node) => [
+      node.node_id,
+      node.node_type === "reservoir" ? 0 : Number(node.base_demand_lps || 0.8) * factor,
+    ]),
+  );
+}
+
+function demandProfileFactor(minute, profileId) {
+  const profile = demandProfiles[profileId] || demandProfiles.metro;
+  const wrapped = ((minute % 1440) + 1440) % 1440;
+  const hour = Math.floor(wrapped / 60);
+  const nextHour = (hour + 1) % 24;
+  const ratio = (wrapped % 60) / 60;
+  const current = profile.multipliers[hour] ?? 1;
+  const next = profile.multipliers[nextHour] ?? current;
+  return current + (next - current) * ratio;
 }
 
 function weightedDistances(source) {
@@ -2298,6 +2339,7 @@ function setPlaybackSpeed(speed) {
 function resetScenario() {
   $("time-slider").value = Math.min(42, state.timeline.length - 1);
   $("demand-scale").value = 1;
+  $("demand-profile").value = state.demandProfile || "metro";
   $("source-head").value = Number(state.reservoirs[0]?.head_m || 58);
   const pump = state.pumps.find((item) => String(item.status || "on").toLowerCase() !== "off");
   $("pump-head").value = pump ? Number(pump.base_head_gain_m || 0) * Number(pump.speed_multiplier || 1) : 0;
