@@ -118,20 +118,52 @@ def analyze_drawing_image(
         31,
         8,
     )
-    edges = cv2.Canny(denoised, 50, 150, apertureSize=3)
-    raw_lines = cv2.HoughLinesP(
-        edges,
-        rho=1,
-        theta=np.pi / 180,
-        threshold=45,
-        minLineLength=max(10, min_line_length),
-        maxLineGap=12,
-    )
+    pipe_mask = _detect_colored_pipe_mask(cv2, image)
+    color_node_candidates = _detect_colored_node_candidates(cv2, image)
+    use_color_recognition = int(np.count_nonzero(pipe_mask)) > max(100, int(width * height * 0.002))
 
-    line_segments = _normalize_lines(raw_lines)
-    node_candidates = _detect_node_candidates(cv2, threshold)
-    merged_nodes = _merge_line_endpoints(line_segments, merge_tolerance_px)
-    pipe_candidates = _pipes_from_lines(line_segments, merged_nodes)
+    if use_color_recognition:
+        edges = cv2.Canny(pipe_mask, 40, 120, apertureSize=3)
+        raw_lines = cv2.HoughLinesP(
+            pipe_mask,
+            rho=1,
+            theta=np.pi / 180,
+            threshold=35,
+            minLineLength=max(15, min_line_length),
+            maxLineGap=24,
+        )
+        line_segments = _dedupe_line_segments(_normalize_lines(raw_lines), merge_tolerance_px)
+        node_candidates = color_node_candidates or _detect_node_candidates(cv2, threshold)
+        merged_nodes = _merge_symbol_nodes_and_pipe_endpoints(
+            node_candidates,
+            line_segments,
+            tolerance_px=merge_tolerance_px,
+            min_endpoint_line_length=max(float(min_line_length) * 3.0, 110.0),
+        )
+        pipe_candidates = _pipes_from_colored_mask(
+            pipe_mask,
+            merged_nodes,
+            max_pair_distance_px=max(width, height) * 0.45,
+        )
+        if pipe_candidates:
+            line_segments = _line_segments_from_pipe_candidates(pipe_candidates, merged_nodes)
+        if not pipe_candidates:
+            merged_nodes = _merge_line_endpoints(line_segments, merge_tolerance_px)
+            pipe_candidates = _pipes_from_lines(line_segments, merged_nodes)
+    else:
+        edges = cv2.Canny(denoised, 50, 150, apertureSize=3)
+        raw_lines = cv2.HoughLinesP(
+            edges,
+            rho=1,
+            theta=np.pi / 180,
+            threshold=45,
+            minLineLength=max(10, min_line_length),
+            maxLineGap=12,
+        )
+        line_segments = _normalize_lines(raw_lines)
+        node_candidates = _detect_node_candidates(cv2, threshold)
+        merged_nodes = _merge_line_endpoints(line_segments, merge_tolerance_px)
+        pipe_candidates = _pipes_from_lines(line_segments, merged_nodes)
     overlay = _draw_overlay(cv2, image, line_segments, node_candidates, pipe_candidates)
     dashboard_assets = build_dashboard_assets_from_candidates(
         merged_nodes,
@@ -250,9 +282,17 @@ def build_dashboard_assets_from_candidates(
             }
         )
 
+    source_candidate_id = _select_source_candidate_id(nodes, pipes)
     reservoirs: list[dict[str, Any]] = []
     if include_virtual_reservoir and dashboard_nodes:
-        source_node = min(dashboard_nodes, key=lambda node: float(node["x"]))
+        source_node = next(
+            (
+                node
+                for node in dashboard_nodes
+                if node["node_id"] == node_id_by_candidate.get(str(source_candidate_id))
+            ),
+            min(dashboard_nodes, key=lambda node: float(node["x"])),
+        )
         reservoir_node = {
             "node_id": "R_IMG_1",
             "x": round(float(source_node["x"]) - 80 * safe_scale, 2),
@@ -299,6 +339,31 @@ def build_dashboard_assets_from_candidates(
     )
 
 
+def _select_source_candidate_id(
+    nodes: list[dict[str, Any]],
+    pipes: list[dict[str, Any]],
+) -> str | None:
+    if not nodes:
+        return None
+    degree: dict[str, int] = {}
+    for pipe in pipes:
+        for key in ["from_node", "to_node"]:
+            node_id = str(pipe.get(key, ""))
+            if node_id:
+                degree[node_id] = degree.get(node_id, 0) + 1
+
+    valid_nodes = [node for node in nodes if "id" in node and "x" in node and "y" in node]
+    if not valid_nodes:
+        return None
+
+    def source_rank(node: dict[str, Any]) -> tuple[int, float, float]:
+        node_id = str(node["id"])
+        is_terminal = degree.get(node_id, 0) <= 1
+        return (0 if is_terminal else 1, float(node["y"]), float(node["x"]))
+
+    return str(min(valid_nodes, key=source_rank)["id"])
+
+
 def call_gemini_vision(
     image_bytes: bytes,
     mime_type: str,
@@ -331,17 +396,30 @@ def call_gemini_vision(
         )
 
     default_prompt = """
-Analyze this water distribution network drawing. Return only JSON with:
+Analyze this water distribution network drawing as a machine-readable recognition aid.
+Return only JSON with this schema:
 {
   "drawing_type": "water_network_drawing|unknown",
-  "pipes": [{"label": string, "description": string, "confidence": number}],
-  "nodes": [{"label": string, "type": "junction|valve|pump|reservoir|tank|unknown", "confidence": number}],
-  "text_labels": [{"text": string, "meaning": string}],
+  "pipe_style": {
+    "main_pipe_colors": [string],
+    "secondary_pipe_colors": [string],
+    "existing_pipe_style": string,
+    "background_or_road_style": string
+  },
+  "detected_assets": {
+    "reservoirs": [{"label": string, "box_2d": [number, number, number, number], "confidence": number}],
+    "junctions": [{"label": string, "box_2d": [number, number, number, number], "confidence": number}],
+    "valves": [{"label": string, "box_2d": [number, number, number, number], "confidence": number}],
+    "pumps": [{"label": string, "box_2d": [number, number, number, number], "confidence": number}]
+  },
+  "text_labels": [{"text": string, "meaning": "node_id|pipe_diameter|pipe_name|legend|unknown", "near": string, "confidence": number}],
+  "connection_hints": [{"from": string, "to": string, "evidence": string, "confidence": number}],
   "legend": [{"symbol": string, "meaning": string}],
   "risks_or_ambiguities": [string],
   "recommended_next_step": string
 }
-Use Korean for descriptions. Do not invent exact coordinates unless the drawing visibly provides them.
+Use normalized Gemini box_2d coordinates in the 0-1000 range when possible.
+Prefer visible labels and visual evidence over guesses. Use Korean for free-text descriptions.
 """
     try:
         client = genai.Client(api_key=api_key)
@@ -427,6 +505,141 @@ def _detect_node_candidates(cv2: Any, threshold: np.ndarray) -> list[dict[str, f
     return sorted(candidates, key=lambda row: row["area_px"], reverse=True)[:150]
 
 
+def _detect_colored_pipe_mask(cv2: Any, image: np.ndarray) -> np.ndarray:
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    blue = cv2.inRange(hsv, np.array([85, 45, 35]), np.array([130, 255, 255]))
+    cyan = cv2.inRange(hsv, np.array([75, 35, 60]), np.array([100, 255, 255]))
+    mask = cv2.bitwise_or(blue, cyan)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
+    return mask
+
+
+def _detect_colored_node_candidates(cv2: Any, image: np.ndarray) -> list[dict[str, float]]:
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    green = cv2.inRange(hsv, np.array([35, 35, 45]), np.array([90, 255, 255]))
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    green = cv2.dilate(green, kernel, iterations=1)
+    contours, _ = cv2.findContours(green, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    candidates: list[dict[str, float]] = []
+    image_area = float(image.shape[0] * image.shape[1])
+    min_marker_area = max(120.0, image_area * 0.00018)
+    for contour in contours:
+        area = float(cv2.contourArea(contour))
+        if area < min_marker_area or area > 2500:
+            continue
+        perimeter = float(cv2.arcLength(contour, True))
+        if perimeter <= 0:
+            continue
+        circularity = 4 * math.pi * area / (perimeter * perimeter)
+        x, y, w, h = [float(value) for value in cv2.boundingRect(contour)]
+        aspect = w / max(h, 1)
+        if w < 18 or h < 18:
+            continue
+        if circularity < 0.25 or not (0.45 <= aspect <= 2.2):
+            continue
+        candidates.append(
+            {
+                "id": f"C{len(candidates) + 1}",
+                "x": round(x + w / 2, 2),
+                "y": round(y + h / 2, 2),
+                "width_px": round(w, 2),
+                "height_px": round(h, 2),
+                "area_px": round(area, 2),
+                "circularity": round(circularity, 3),
+            }
+        )
+    return sorted(candidates, key=lambda row: (row["y"], row["x"]))[:150]
+
+
+def _nodes_from_candidates(candidates: list[dict[str, float]]) -> list[dict[str, float]]:
+    return [
+        {
+            "id": f"N{index + 1}",
+            "x": float(candidate["x"]),
+            "y": float(candidate["y"]),
+            "hits": 1,
+        }
+        for index, candidate in enumerate(candidates)
+        if "x" in candidate and "y" in candidate
+    ]
+
+
+def _merge_symbol_nodes_and_pipe_endpoints(
+    candidates: list[dict[str, float]],
+    line_segments: list[dict[str, float]],
+    *,
+    tolerance_px: float,
+    min_endpoint_line_length: float,
+) -> list[dict[str, float]]:
+    nodes = _nodes_from_candidates(candidates)
+    for line in line_segments:
+        if float(line.get("length_px", 0.0)) < min_endpoint_line_length:
+            continue
+        for x_key, y_key in [("x1", "y1"), ("x2", "y2")]:
+            x = float(line[x_key])
+            y = float(line[y_key])
+            match = _nearest_node(nodes, x, y, tolerance_px * 2.8)
+            if match is None:
+                nodes.append({"id": f"N{len(nodes) + 1}", "x": x, "y": y, "hits": 1})
+            else:
+                match["hits"] = int(float(match["hits"]) + 1)
+    return [
+        {"id": f"N{index + 1}", "x": round(float(node["x"]), 2), "y": round(float(node["y"]), 2), "hits": int(node.get("hits", 1))}
+        for index, node in enumerate(nodes)
+    ]
+
+
+def _dedupe_line_segments(
+    line_segments: list[dict[str, float]],
+    tolerance_px: float,
+) -> list[dict[str, float]]:
+    merged: list[dict[str, float]] = []
+    for segment in sorted(line_segments, key=lambda row: row["length_px"], reverse=True):
+        if any(_similar_line_segment(existing, segment, tolerance_px) for existing in merged):
+            continue
+        copied = dict(segment)
+        copied["id"] = f"L{len(merged) + 1}"
+        merged.append(copied)
+        if len(merged) >= 300:
+            break
+    return merged
+
+
+def _similar_line_segment(a: dict[str, float], b: dict[str, float], tolerance_px: float) -> bool:
+    angle_delta = abs(((float(a["angle_deg"]) - float(b["angle_deg"]) + 90) % 180) - 90)
+    if angle_delta > 8:
+        return False
+    ax1, ay1, ax2, ay2 = float(a["x1"]), float(a["y1"]), float(a["x2"]), float(a["y2"])
+    bx1, by1, bx2, by2 = float(b["x1"]), float(b["y1"]), float(b["x2"]), float(b["y2"])
+    distance = _point_to_line_distance((bx1 + bx2) / 2, (by1 + by2) / 2, ax1, ay1, ax2, ay2)
+    if distance > max(tolerance_px, 10):
+        return False
+    return _projected_ranges_overlap((ax1, ay1), (ax2, ay2), (bx1, by1), (bx2, by2), tolerance_px)
+
+
+def _projected_ranges_overlap(
+    a1: tuple[float, float],
+    a2: tuple[float, float],
+    b1: tuple[float, float],
+    b2: tuple[float, float],
+    tolerance_px: float,
+) -> bool:
+    dx = a2[0] - a1[0]
+    dy = a2[1] - a1[1]
+    length = math.hypot(dx, dy)
+    if length <= 0:
+        return False
+    ux, uy = dx / length, dy / length
+    a_range = sorted([0.0, length])
+    b_range = sorted([
+        (b1[0] - a1[0]) * ux + (b1[1] - a1[1]) * uy,
+        (b2[0] - a1[0]) * ux + (b2[1] - a1[1]) * uy,
+    ])
+    return max(a_range[0], b_range[0]) <= min(a_range[1], b_range[1]) + tolerance_px
+
+
 def _merge_line_endpoints(
     line_segments: list[dict[str, float]],
     tolerance_px: float,
@@ -484,6 +697,130 @@ def _pipes_from_lines(
             }
         )
     return pipes
+
+
+def _pipes_from_colored_mask(
+    pipe_mask: np.ndarray,
+    nodes: list[dict[str, float]],
+    *,
+    max_pair_distance_px: float,
+) -> list[dict[str, Any]]:
+    pipes: list[dict[str, Any]] = []
+    if len(nodes) < 2:
+        return pipes
+    ordered_nodes = sorted(nodes, key=lambda node: (float(node["y"]), float(node["x"])))
+    for index, start in enumerate(ordered_nodes):
+        for end in ordered_nodes[index + 1 :]:
+            distance = math.hypot(float(end["x"]) - float(start["x"]), float(end["y"]) - float(start["y"]))
+            if distance < 20 or distance > max_pair_distance_px:
+                continue
+            if _has_intermediate_node(start, end, ordered_nodes):
+                continue
+            coverage = _mask_line_coverage(pipe_mask, start, end)
+            if coverage < 0.52:
+                continue
+            angle = math.degrees(math.atan2(float(end["y"]) - float(start["y"]), float(end["x"]) - float(start["x"])))
+            pipes.append(
+                {
+                    "id": f"P_IMG_{len(pipes) + 1}",
+                    "from_node": start["id"],
+                    "to_node": end["id"],
+                    "source_line": f"COLOR_{len(pipes) + 1}",
+                    "length_px": round(distance, 2),
+                    "angle_deg": round(angle, 2),
+                }
+            )
+    return pipes
+
+
+def _line_segments_from_pipe_candidates(
+    pipe_candidates: list[dict[str, Any]],
+    nodes: list[dict[str, float]],
+) -> list[dict[str, float]]:
+    node_by_id = {str(node["id"]): node for node in nodes}
+    line_segments: list[dict[str, float]] = []
+    for pipe in pipe_candidates:
+        start = node_by_id.get(str(pipe.get("from_node", "")))
+        end = node_by_id.get(str(pipe.get("to_node", "")))
+        if not start or not end:
+            continue
+        x1, y1 = float(start["x"]), float(start["y"])
+        x2, y2 = float(end["x"]), float(end["y"])
+        line_segments.append(
+            {
+                "id": str(pipe.get("source_line") or f"COLOR_{len(line_segments) + 1}"),
+                "x1": round(x1, 2),
+                "y1": round(y1, 2),
+                "x2": round(x2, 2),
+                "y2": round(y2, 2),
+                "length_px": float(pipe.get("length_px", math.hypot(x2 - x1, y2 - y1))),
+                "angle_deg": float(pipe.get("angle_deg", math.degrees(math.atan2(y2 - y1, x2 - x1)))),
+            }
+        )
+    return line_segments
+
+
+def _has_intermediate_node(
+    start: dict[str, float],
+    end: dict[str, float],
+    nodes: list[dict[str, float]],
+) -> bool:
+    sx, sy = float(start["x"]), float(start["y"])
+    ex, ey = float(end["x"]), float(end["y"])
+    length = math.hypot(ex - sx, ey - sy)
+    if length <= 0:
+        return False
+    for node in nodes:
+        if node["id"] in {start["id"], end["id"]}:
+            continue
+        nx, ny = float(node["x"]), float(node["y"])
+        projection = ((nx - sx) * (ex - sx) + (ny - sy) * (ey - sy)) / (length * length)
+        if not (0.12 <= projection <= 0.88):
+            continue
+        if _point_to_line_distance(nx, ny, sx, sy, ex, ey) <= 32:
+            return True
+    return False
+
+
+def _mask_line_coverage(
+    pipe_mask: np.ndarray,
+    start: dict[str, float],
+    end: dict[str, float],
+    *,
+    corridor_px: int = 8,
+) -> float:
+    height, width = pipe_mask.shape[:2]
+    sx, sy = float(start["x"]), float(start["y"])
+    ex, ey = float(end["x"]), float(end["y"])
+    sample_count = max(24, int(math.hypot(ex - sx, ey - sy) / 3))
+    hits = 0
+    checked = 0
+    for index in range(sample_count + 1):
+        t = index / sample_count
+        x = int(round(sx + (ex - sx) * t))
+        y = int(round(sy + (ey - sy) * t))
+        if not (0 <= x < width and 0 <= y < height):
+            continue
+        checked += 1
+        x1, x2 = max(0, x - corridor_px), min(width, x + corridor_px + 1)
+        y1, y2 = max(0, y - corridor_px), min(height, y + corridor_px + 1)
+        if np.any(pipe_mask[y1:y2, x1:x2] > 0):
+            hits += 1
+    return hits / max(checked, 1)
+
+
+def _point_to_line_distance(
+    px: float,
+    py: float,
+    x1: float,
+    y1: float,
+    x2: float,
+    y2: float,
+) -> float:
+    length = math.hypot(x2 - x1, y2 - y1)
+    if length <= 0:
+        return math.hypot(px - x1, py - y1)
+    return abs((y2 - y1) * px - (x2 - x1) * py + x2 * y1 - y2 * x1) / length
 
 
 def _draw_overlay(

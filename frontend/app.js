@@ -62,6 +62,7 @@ const state = {
   valves: [],
   households: [],
   demandSeries: [],
+  initialData: null,
   demandByMinute: new Map(),
   timeline: [],
   pipeEdits: new Map(),
@@ -82,6 +83,7 @@ const state = {
   draggingNodeId: "",
   playbackTimer: null,
   playbackSpeed: 1,
+  drawingFile: null,
   drawingImage: null,
   drawingAssets: null,
   drawingRecognition: null,
@@ -103,6 +105,15 @@ async function boot() {
   ]);
 
   Object.assign(state, { nodes, pipes, reservoirs, pumps, valves, households, demandSeries });
+  state.initialData = {
+    nodes: cloneRows(nodes),
+    pipes: cloneRows(pipes),
+    reservoirs: cloneRows(reservoirs),
+    pumps: cloneRows(pumps),
+    valves: cloneRows(valves),
+    households: cloneRows(households),
+    demandSeries: cloneRows(demandSeries),
+  };
   state.baseNodeGeometry = new Map(state.nodes.map((node) => [node.node_id, baseNodeState(node)]));
   state.originalNodeGeometry = new Map(state.nodes.map((node) => [node.node_id, baseNodeState(node)]));
   state.aging = new Map(state.pipes.map((pipe) => [pipe.pipe_id, agingScore(pipe)]));
@@ -136,6 +147,10 @@ function parseValue(value) {
   if (value === undefined || value === "") return "";
   const number = Number(value);
   return Number.isFinite(number) && value.trim() !== "" ? number : value;
+}
+
+function cloneRows(rows) {
+  return rows.map((row) => ({ ...row }));
 }
 
 function buildDemandIndex() {
@@ -290,6 +305,7 @@ function initDrawingRecognition() {
     });
   });
   $("analyze-drawing").addEventListener("click", analyzeDrawingImage);
+  $("reset-drawing").addEventListener("click", resetDrawingRecognition);
   $("download-assets-json").addEventListener("click", () => downloadRecognitionAsset("json"));
   $("download-nodes-csv").addEventListener("click", () => downloadRecognitionAsset("nodes"));
   $("download-pipes-csv").addEventListener("click", () => downloadRecognitionAsset("pipes"));
@@ -301,6 +317,7 @@ function handleDrawingFile(event) {
   if (!file) return;
   const image = new Image();
   image.onload = () => {
+    state.drawingFile = file;
     state.drawingImage = image;
     state.drawingRecognition = null;
     state.drawingAssets = null;
@@ -311,6 +328,75 @@ function handleDrawingFile(event) {
     toggleRecognitionDownloads(false);
   };
   image.src = URL.createObjectURL(file);
+}
+
+function resetDrawingRecognition() {
+  state.drawingFile = null;
+  state.drawingImage = null;
+  state.drawingRecognition = null;
+  state.drawingAssets = null;
+  restoreInitialDashboardNetwork();
+  $("drawing-file").value = "";
+  $("recognized-pipe-count").textContent = 0;
+  $("recognized-node-count").textContent = 0;
+  $("recognized-image-size").textContent = "--";
+  $("recognized-export-state").textContent = "reset";
+  renderRecognitionTable("recognized-nodes-table", [], ["node_id", "x", "y", "node_type", "dma_id"]);
+  renderRecognitionTable("recognized-pipes-table", [], ["pipe_id", "from_node", "to_node", "length_m", "diameter_mm", "material"]);
+  toggleRecognitionDownloads(false);
+  updateRecognitionStatus("image waiting", "0 pipes / 0 nodes");
+  drawRecognitionCanvas();
+}
+
+function restoreInitialDashboardNetwork() {
+  if (!state.initialData) return;
+  state.nodes = cloneRows(state.initialData.nodes);
+  state.pipes = cloneRows(state.initialData.pipes);
+  state.reservoirs = cloneRows(state.initialData.reservoirs);
+  state.pumps = cloneRows(state.initialData.pumps);
+  state.valves = cloneRows(state.initialData.valves);
+  state.households = cloneRows(state.initialData.households);
+  state.demandSeries = cloneRows(state.initialData.demandSeries);
+  buildDemandIndex();
+  state.pipeEdits = new Map();
+  state.leakDemands = new Map();
+  state.baseNodeGeometry = new Map(state.nodes.map((node) => [node.node_id, baseNodeState(node)]));
+  state.originalNodeGeometry = new Map(state.nodes.map((node) => [node.node_id, baseNodeState(node)]));
+  state.aging = new Map(state.pipes.map((pipe) => [pipe.pipe_id, agingScore(pipe)]));
+  state.addMode = false;
+  state.pipeDrawMode = false;
+  state.pendingJunction = null;
+  state.pendingPipe = null;
+  state.editorTab = "pipe";
+  state.selected = state.pipes[0] ? `pipe:${state.pipes[0].pipe_id}` : `node:${firstJunctionId()}`;
+  fitMapToCurrentNetwork();
+  refreshAssetOptions();
+  syncDashboardControlsAfterNetworkRestore();
+  updateDrawReadout("도면 인식 이미지와 가져온 관망을 초기화하고 기본 관망으로 되돌렸습니다.");
+  render();
+}
+
+function syncDashboardControlsAfterNetworkRestore() {
+  const firstPipe = state.pipes[0]?.pipe_id || "";
+  const firstNode = firstJunctionId();
+  const firstSource = firstSourceId();
+  if ($("selected-pipe")) $("selected-pipe").value = firstPipe;
+  if ($("leak-pipe")) $("leak-pipe").value = state.pipes.some((pipe) => pipe.pipe_id === "P14") ? "P14" : firstPipe;
+  if ($("selected-junction")) $("selected-junction").value = firstNode;
+  if ($("source-junction")) $("source-junction").value = firstNode;
+  if ($("source-connect-junction")) $("source-connect-junction").value = firstNode;
+  if ($("selected-source")) $("selected-source").value = firstSource;
+  if ($("new-source-id")) $("new-source-id").value = nextSourceId();
+  const reservoirHead = Number(state.reservoirs[0]?.head_m || 58);
+  const pump = state.pumps.find((item) => String(item.status || "on").toLowerCase() !== "off");
+  if ($("source-head")) $("source-head").value = reservoirHead;
+  if ($("source-design-head")) $("source-design-head").value = reservoirHead;
+  if ($("pump-head")) $("pump-head").value = pump ? Number(pump.base_head_gain_m || 0) * Number(pump.speed_multiplier || 1) : 0;
+  if ($("source-pump-gain")) $("source-pump-gain").value = $("pump-head")?.value || 0;
+  if ($("leak-demand")) $("leak-demand").value = 2;
+  if ($("time-slider")) $("time-slider").value = Math.min(42, state.timeline.length - 1);
+  syncSourceControlLabels();
+  syncPipeEditor();
 }
 
 function drawRecognitionCanvas(segments = [], nodes = []) {
@@ -353,18 +439,30 @@ function drawRecognitionCanvas(segments = [], nodes = []) {
   }
 }
 
-function analyzeDrawingImage() {
-  if (!state.drawingImage) {
+async function analyzeDrawingImage() {
+  if (!state.drawingImage || !state.drawingFile) {
     updateRecognitionStatus("image required", "0 pipes / 0 nodes");
     return;
   }
-  state.drawingRecognition = recognizeDrawingGeometry(state.drawingImage);
-  renderDrawingRecognition();
+  updateRecognitionStatus("analyzing", "OpenCV + Gemini");
+  $("analyze-drawing").disabled = true;
+  try {
+    const serverResult = await recognizeDrawingGeometryWithApi(state.drawingFile);
+    state.drawingRecognition = serverResult.recognition;
+    renderDrawingRecognition(serverResult.assets);
+  } catch (error) {
+    console.warn("Server recognition failed, using browser fallback.", error);
+    state.drawingRecognition = recognizeDrawingGeometry(state.drawingImage);
+    renderDrawingRecognition();
+    updateRecognitionStatus("browser fallback", `${state.drawingAssets.pipes.length} pipes / ${state.drawingAssets.nodes.length} nodes`);
+  } finally {
+    $("analyze-drawing").disabled = false;
+  }
 }
 
-function renderDrawingRecognition() {
+function renderDrawingRecognition(prebuiltAssets = null) {
   if (!state.drawingRecognition) return;
-  const assets = dashboardAssetsFromRecognition(state.drawingRecognition);
+  const assets = prebuiltAssets || dashboardAssetsFromRecognition(state.drawingRecognition);
   state.drawingAssets = assets;
   drawRecognitionCanvas(state.drawingRecognition.segments, state.drawingRecognition.nodes);
   $("recognized-pipe-count").textContent = assets.pipes.length;
@@ -376,6 +474,37 @@ function renderDrawingRecognition() {
   renderRecognitionTable("recognized-pipes-table", assets.pipes, ["pipe_id", "from_node", "to_node", "length_m", "diameter_mm", "material"]);
   toggleRecognitionDownloads(Boolean(assets.nodes.length && assets.pipes.length));
   applyRecognitionAssetsToDashboard(assets);
+}
+
+async function recognizeDrawingGeometryWithApi(file) {
+  const imageBase64 = await fileToBase64(file);
+  const response = await fetch("/api/recognize-drawing", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      image_base64: imageBase64,
+      mime_type: file.type || "image/png",
+      min_line_length: Number($("drawing-min-line").value || 45),
+      merge_tolerance_px: Number($("drawing-merge-tolerance").value || 18),
+      scale_m_per_px: Number($("drawing-scale").value || 1),
+      default_diameter_mm: Number($("drawing-diameter").value || 150),
+      default_material: $("drawing-material").value || "PVC",
+      use_gemini: true,
+    }),
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error || "recognition API failed");
+  if (!payload.recognition || !payload.assets) throw new Error("recognition API returned an incomplete payload");
+  return payload;
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || "").split(",")[1] || "");
+    reader.onerror = () => reject(reader.error || new Error("file read failed"));
+    reader.readAsDataURL(file);
+  });
 }
 
 function recognizeDrawingGeometry(image) {
