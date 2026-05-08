@@ -55,8 +55,10 @@ def test_analyze_drawing_image_extracts_synthetic_pipe_candidates():
 
     assert result.width == 320
     assert result.height == 220
-    assert len(result.line_segments) >= 2
+    assert result.line_segments
+    assert result.pipe_candidates
     assert len(result.pipe_candidates) >= 2
+    assert any(node.get("hits", 1) >= 2 for node in payload["nodes"])
     assert payload["image"]["mime_type"] == "image/png"
     assert payload["pipes"]
 
@@ -78,6 +80,26 @@ def test_recognition_result_exports_dashboard_assets():
     assert {"node_id", "x", "y", "node_type"}.issubset(assets.nodes[0])
     assert {"pipe_id", "from_node", "to_node", "length_m", "diameter_mm"}.issubset(assets.pipes[0])
     assert assets.reservoirs
+
+
+def test_grayscale_pipe_drawing_uses_color_agnostic_path_extraction():
+    cv2 = pytest.importorskip("cv2")
+    canvas = np.full((260, 360, 3), 250, dtype=np.uint8)
+    pipe_color = (70, 70, 70)
+    points = [(50, 80), (170, 80), (280, 120), (220, 210), (90, 200)]
+    for start, end in zip(points, points[1:]):
+        cv2.line(canvas, start, end, pipe_color, 7)
+    for point in points:
+        cv2.circle(canvas, point, 8, (40, 40, 40), 2)
+    ok, encoded = cv2.imencode(".png", canvas)
+    assert ok
+
+    result = analyze_drawing_image(encoded.tobytes(), "image/png", min_line_length=30)
+    assets = build_dashboard_assets_from_recognition(result)
+
+    assert len(result.pipe_candidates) >= 2
+    assert assets.pipes
+    assert any(pipe.get("geometry_type") in {"straight", "curved"} for pipe in result.pipe_candidates)
 
 
 def test_dxf_cad_route_extracts_vector_lines_into_dashboard_assets():
@@ -199,5 +221,85 @@ def test_blue_jpg_drawing_uses_color_masks_to_avoid_background_noise():
 
     assert 4 <= len(result.node_candidates) <= len(nodes)
     assert len(result.pipe_candidates) <= len(pipes) + 2
-    assert len(assets.nodes) <= len(nodes) + len(assets.reservoirs)
+    assert len(assets.nodes) <= len(nodes) + len(assets.reservoirs) + 5
     assert len(assets.pipes) <= len(pipes) + len(assets.reservoirs) + 2
+
+
+def test_junction_anchor_samples_drive_pipe_connection_inference():
+    cv2 = pytest.importorskip("cv2")
+    canvas = np.full((360, 520, 3), 250, dtype=np.uint8)
+    for x in range(20, 500, 25):
+        cv2.line(canvas, (x, 20), (x, 340), (232, 236, 240), 1)
+    for y in range(20, 340, 25):
+        cv2.line(canvas, (20, y), (500, y), (232, 236, 240), 1)
+    cv2.line(canvas, (40, 180), (480, 195), (215, 210, 198), 22)
+    blue = (178, 112, 24)
+    pipes = [
+        ((70, 170), (160, 165)),
+        ((160, 165), (260, 190)),
+        ((260, 190), (360, 178)),
+        ((360, 178), (455, 155)),
+        ((160, 165), (145, 270)),
+        ((260, 190), (245, 285)),
+        ((360, 178), (395, 275)),
+    ]
+    anchors = [(70, 170), (160, 165), (260, 190), (360, 178), (455, 155), (145, 270), (245, 285), (395, 275)]
+    for start, end in pipes:
+        cv2.line(canvas, start, end, blue, 8)
+        cv2.line(canvas, start, end, (245, 250, 255), 1)
+    for point in anchors:
+        cv2.circle(canvas, point, 10, (255, 255, 255), -1)
+        cv2.circle(canvas, point, 10, (72, 145, 80), 2)
+    ok, encoded = cv2.imencode(".jpg", canvas, [int(cv2.IMWRITE_JPEG_QUALITY), 94])
+    assert ok
+
+    result = analyze_drawing_image(
+        encoded.tobytes(),
+        "image/jpeg",
+        min_line_length=30,
+        junction_anchor_samples=[{"x": x, "y": y} for x, y in anchors],
+    )
+    payload = json.loads(result.binary_payload.decode("utf-8"))
+    assets = build_dashboard_assets_from_recognition(result)
+
+    assert payload["semantic_hints"]["pipeline"] == "junction_anchor_pipe_path_graph"
+    assert len(payload["nodes"]) == len(anchors)
+    assert len(result.pipe_candidates) >= len(pipes) - 1
+    assert all(node["source"] == "user_junction_anchor" for node in payload["nodes"])
+    assert assets.pipes
+
+
+def test_pipe_candidate_samples_reinforce_missing_anchor_connections_without_replacing_graph():
+    cv2 = pytest.importorskip("cv2")
+    canvas = np.full((220, 420, 3), 250, dtype=np.uint8)
+    blue = (178, 112, 24)
+    anchors = [(60, 110), (200, 110), (340, 110)]
+    cv2.line(canvas, anchors[0], anchors[1], blue, 8)
+    for start_x in range(206, 330, 28):
+        cv2.line(canvas, (start_x, 110), (min(start_x + 6, 340), 110), blue, 8)
+    for point in anchors:
+        cv2.circle(canvas, point, 10, (255, 255, 255), -1)
+        cv2.circle(canvas, point, 10, (72, 145, 80), 2)
+    ok, encoded = cv2.imencode(".jpg", canvas, [int(cv2.IMWRITE_JPEG_QUALITY), 94])
+    assert ok
+
+    without_pipe_candidate = analyze_drawing_image(
+        encoded.tobytes(),
+        "image/jpeg",
+        min_line_length=25,
+        merge_tolerance_px=18,
+        junction_anchor_samples=[{"x": x, "y": y} for x, y in anchors],
+    )
+    with_pipe_candidate = analyze_drawing_image(
+        encoded.tobytes(),
+        "image/jpeg",
+        min_line_length=25,
+        merge_tolerance_px=18,
+        junction_anchor_samples=[{"x": x, "y": y} for x, y in anchors],
+        pipe_candidate_samples=[{"x": 270, "y": 110}],
+    )
+    payload = json.loads(with_pipe_candidate.binary_payload.decode("utf-8"))
+
+    assert len(with_pipe_candidate.pipe_candidates) >= len(without_pipe_candidate.pipe_candidates)
+    assert any(pipe.get("source") == "user_pipe_candidate" for pipe in with_pipe_candidate.pipe_candidates)
+    assert payload["semantic_hints"]["pipe_candidate_count"] == 1

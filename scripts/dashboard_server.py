@@ -112,6 +112,9 @@ def _recognize_drawing(request: dict[str, Any]) -> dict[str, Any]:
         mime_type=mime_type,
         min_line_length=int(float(request.get("min_line_length") or 45)),
         merge_tolerance_px=float(request.get("merge_tolerance_px") or 18),
+        pipe_candidate_samples=request.get("pipe_candidate_samples") if isinstance(request.get("pipe_candidate_samples"), list) else None,
+        pipe_style_samples=request.get("pipe_style_samples") if isinstance(request.get("pipe_style_samples"), list) else None,
+        junction_anchor_samples=request.get("junction_anchor_samples") if isinstance(request.get("junction_anchor_samples"), list) else None,
     )
     assets = build_dashboard_assets_from_recognition(
         recognition_result,
@@ -125,6 +128,13 @@ def _recognize_drawing(request: dict[str, Any]) -> dict[str, Any]:
         gemini_result = call_gemini_vision(file_bytes, _image_mime_for_request(filename, mime_type))
 
     payload = json.loads(recognition_result.binary_payload.decode("utf-8"))
+    semantic_hints = payload.get("semantic_hints") or {}
+    if gemini_result is not None:
+        semantic_hints = {
+            "source": "gemini",
+            "parsed_json": gemini_result.parsed_json,
+            "error": gemini_result.error,
+        }
     return {
         "recognition": {
             "file_type": drawing_file_type,
@@ -138,6 +148,8 @@ def _recognize_drawing(request: dict[str, Any]) -> dict[str, Any]:
             "nodes": payload.get("nodes", []),
             "node_candidates": recognition_result.node_candidates,
             "pipe_candidates": recognition_result.pipe_candidates,
+            "low_confidence_pipes": payload.get("low_confidence_pipes", []),
+            "semantic_hints": semantic_hints,
             "summary": recognition_result.summary(),
             "gemini": _gemini_to_dict(gemini_result),
             "warnings": payload.get("cad_warnings", []) + payload.get("pdf_warnings", []) + assets.warnings,

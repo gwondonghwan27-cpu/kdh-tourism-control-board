@@ -219,11 +219,33 @@ main {
 }
 
 .recognition-console {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px 12px;
+}
+
+.recognition-primary-controls {
   display: grid;
-  grid-template-columns: minmax(190px, 1.2fr) repeat(5, minmax(120px, 1fr)) max-content;
+  width: 100%;
+  grid-template-columns: minmax(200px, 1.2fr) repeat(2, minmax(170px, 1fr)) repeat(3, minmax(150px, 0.9fr)) minmax(82px, max-content);
   align-items: end;
   gap: 12px;
-  padding: 14px;
+}
+
+.recognition-candidate-actions {
+  display: flex;
+  width: min(980px, 100%);
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 2px;
+}
+
+.recognition-candidate-actions .text-button {
+  min-width: 150px;
 }
 
 .recognition-grid {
@@ -244,6 +266,11 @@ main {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.compact-action {
+  min-height: 36px;
+  padding: 0 14px;
 }
 
 .drawing-canvas-frame {
@@ -326,6 +353,37 @@ main {
   background: #eff5f8;
   color: #385263;
   font-weight: 900;
+}
+
+.sample-count {
+  display: inline-flex;
+  min-width: 58px;
+  align-items: center;
+  justify-content: flex-start;
+  color: #516475;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.recognition-format-guidance {
+  width: min(1480px, 100%);
+  margin: 8px auto 0;
+  color: #315166;
+  font-size: 0.88rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+#pipe-sample-mode.active {
+  border-color: #f59e0b;
+  color: #92400e;
+  background: #fff7ed;
+}
+
+#junction-sample-mode.active {
+  border-color: #0f766e;
+  color: #0f766e;
+  background: #ecfdf5;
 }
 
 .timeline-head {
@@ -1039,6 +1097,10 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .recognition-primary-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .asset-toolbar {
     align-items: stretch;
   }
@@ -1070,6 +1132,19 @@ button:disabled {
     flex: 1;
     min-height: 42px;
     padding: 0 8px;
+  }
+
+  .recognition-primary-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .recognition-candidate-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .recognition-candidate-actions .text-button {
+    flex: 1 1 180px;
   }
 
   .status-strip {
