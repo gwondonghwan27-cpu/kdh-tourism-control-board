@@ -33,7 +33,7 @@ def main() -> None:
 
     ensure_src_path()
     st.set_page_config(
-        page_title="상수관망 디지털 트윈",
+        page_title="Water Network Digital Twin",
         layout="wide",
         initial_sidebar_state="collapsed",
     )
@@ -75,29 +75,32 @@ def ensure_src_path() -> None:
 
 
 def render_streamlit_recognition_controls(st: Any) -> dict[str, Any] | None:
-    from aging_water_network.vision import analyze_drawing_image, build_dashboard_assets_from_recognition
+    from aging_water_network.vision import build_dashboard_assets_from_recognition, recognize_drawing_file
 
-    st.sidebar.header("도면 인식")
-    uploaded = st.sidebar.file_uploader("JPG/PNG 관망도면", type=["jpg", "jpeg", "png"])
-    min_line_length = st.sidebar.slider("최소 선분 길이(px)", 10, 180, 35, 5)
-    merge_tolerance = st.sidebar.slider("끝점 병합 허용치(px)", 4, 42, 18, 1)
-    scale_m_per_px = st.sidebar.number_input("픽셀-미터 환산", min_value=0.01, max_value=20.0, value=1.0, step=0.05)
-    default_diameter_mm = st.sidebar.number_input("기본 관경(mm)", min_value=50.0, max_value=1200.0, value=150.0, step=10.0)
-    default_material = st.sidebar.selectbox("기본 재질", ["PVC", "HDPE", "ductile_iron", "steel", "cast_iron", "concrete"], index=0)
+    st.sidebar.header("Drawing recognition")
+    uploaded = st.sidebar.file_uploader(
+        "Water-network drawing file",
+        type=["jpg", "jpeg", "png", "pdf", "dwg", "dxf"],
+    )
+    min_line_length = st.sidebar.slider("Minimum line length (px)", 10, 180, 35, 5)
+    merge_tolerance = st.sidebar.slider("Endpoint merge tolerance (px)", 4, 42, 18, 1)
+    scale_m_per_px = st.sidebar.number_input("Pixel-to-meter scale", min_value=0.01, max_value=20.0, value=1.0, step=0.05)
+    default_diameter_mm = st.sidebar.number_input("Default diameter (mm)", min_value=50.0, max_value=1200.0, value=150.0, step=10.0)
+    default_material = st.sidebar.selectbox("Default material", ["PVC", "HDPE", "ductile_iron", "steel", "cast_iron", "concrete"], index=0)
     col_a, col_b = st.sidebar.columns(2)
-    analyze = col_a.button("도면 분석", type="primary", disabled=uploaded is None)
-    reset = col_b.button("초기화")
+    analyze = col_a.button("Analyze", type="primary", disabled=uploaded is None)
+    reset = col_b.button("Reset")
 
     if reset:
         st.session_state.pop("streamlit_recognized_assets", None)
         st.session_state.pop("streamlit_recognition_summary", None)
     if analyze and uploaded is not None:
-        image_bytes = uploaded.getvalue()
-        mime_type = "image/png" if uploaded.name.lower().endswith(".png") else "image/jpeg"
-        with st.spinner("도면 이미지를 인식하는 중입니다."):
-            result = analyze_drawing_image(
-                image_bytes,
-                mime_type,
+        file_bytes = uploaded.getvalue()
+        with st.spinner("Detecting file type and recognizing drawing geometry."):
+            drawing_file_type, result = recognize_drawing_file(
+                file_bytes,
+                filename=uploaded.name,
+                mime_type=uploaded.type or mime_type_from_filename(uploaded.name),
                 min_line_length=min_line_length,
                 merge_tolerance_px=float(merge_tolerance),
             )
@@ -109,15 +112,36 @@ def render_streamlit_recognition_controls(st: Any) -> dict[str, Any] | None:
                 include_virtual_reservoir=True,
             )
         st.session_state.streamlit_recognized_assets = assets.to_dict()
-        st.session_state.streamlit_recognition_summary = result.summary()
+        st.session_state.streamlit_recognition_summary = {
+            **result.summary(),
+            "file_type": drawing_file_type,
+            "cad_format": getattr(result, "cad_format", None),
+            "pdf_mode": getattr(result, "pdf_mode", None),
+            "warnings": getattr(result, "warnings", []),
+        }
 
     summary = st.session_state.get("streamlit_recognition_summary")
     if summary:
+        route = summary.get("file_type", "drawing")
         st.sidebar.caption(
-            f"인식 결과: {summary['pipe_candidates']} pipes / "
+            f"{route} result: {summary['pipe_candidates']} pipes / "
             f"{summary['node_candidates']} node candidates"
         )
+        for warning in summary.get("warnings", []):
+            st.sidebar.warning(warning)
     return st.session_state.get("streamlit_recognized_assets")
+
+
+def mime_type_from_filename(filename: str) -> str:
+    suffix = Path(filename).suffix.lower()
+    return {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".pdf": "application/pdf",
+        ".dwg": "application/x-dwg",
+        ".dxf": "application/dxf",
+    }.get(suffix, "application/octet-stream")
 
 
 def build_dashboard_html(recognized_assets: dict[str, Any] | None = None) -> str:
@@ -135,7 +159,7 @@ def build_dashboard_html(recognized_assets: dict[str, Any] | None = None) -> str
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>상수관망 디지털 트윈 대시보드</title>
+    <title>Water Network Digital Twin</title>
     <style>
       html, body {{
         margin: 0;
@@ -153,11 +177,20 @@ def build_dashboard_html(recognized_assets: dict[str, Any] | None = None) -> str
       const __streamlitOriginalFetch = window.fetch ? window.fetch.bind(window) : null;
       window.fetch = async function(resource, options) {{
         const url = typeof resource === "string" ? resource : resource?.url || "";
-        const fileName = decodeURIComponent(String(url).split("?")[0].split("/").pop());
+        const route = decodeURIComponent(String(url).split("?")[0]);
+        const fileName = route.split("/").pop();
         if (Object.prototype.hasOwnProperty.call(window.__STREAMLIT_MOCK_CSV__, fileName)) {{
           return new Response(window.__STREAMLIT_MOCK_CSV__[fileName], {{
             status: 200,
             headers: {{ "Content-Type": "text/csv;charset=utf-8" }},
+          }});
+        }}
+        if (route.endsWith("/api/recognize-drawing")) {{
+          return new Response(JSON.stringify({{
+            error: "Use the Streamlit sidebar uploader for cloud drawing recognition."
+          }}), {{
+            status: 501,
+            headers: {{ "Content-Type": "application/json;charset=utf-8" }},
           }});
         }}
         if (__streamlitOriginalFetch) return __streamlitOriginalFetch(resource, options);

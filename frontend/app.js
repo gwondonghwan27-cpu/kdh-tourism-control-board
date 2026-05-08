@@ -100,6 +100,7 @@ const state = {
   playbackTimer: null,
   playbackSpeed: 1,
   drawingFile: null,
+  drawingFileType: null,
   drawingImage: null,
   drawingAssets: null,
   drawingRecognition: null,
@@ -332,9 +333,26 @@ function initDrawingRecognition() {
 function handleDrawingFile(event) {
   const file = event.target.files?.[0];
   if (!file) return;
+  const fileType = classifyDrawingFile(file);
+  if (fileType !== "image") {
+    state.drawingFile = file;
+    state.drawingFileType = fileType;
+    state.drawingImage = null;
+    state.drawingRecognition = null;
+    state.drawingAssets = null;
+    $("recognized-export-state").textContent = "waiting";
+    toggleRecognitionDownloads(false);
+    drawRecognitionCanvas();
+    $("recognized-image-size").textContent = file.name;
+    const routeName = fileType === "pdf" ? "PDF loaded" : fileType === "cad" ? "CAD loaded" : "unsupported file";
+    const routeHint = fileType === "pdf" ? "ready for PDF route" : fileType === "cad" ? "ready for CAD route" : "JPG / PNG / PDF / DWG / DXF";
+    updateRecognitionStatus(routeName, routeHint);
+    return;
+  }
   const image = new Image();
   image.onload = () => {
     state.drawingFile = file;
+    state.drawingFileType = fileType;
     state.drawingImage = image;
     state.drawingRecognition = null;
     state.drawingAssets = null;
@@ -349,6 +367,7 @@ function handleDrawingFile(event) {
 
 function resetDrawingRecognition() {
   state.drawingFile = null;
+  state.drawingFileType = null;
   state.drawingImage = null;
   state.drawingRecognition = null;
   state.drawingAssets = null;
@@ -361,7 +380,7 @@ function resetDrawingRecognition() {
   renderRecognitionTable("recognized-nodes-table", [], ["node_id", "x", "y", "node_type", "dma_id"]);
   renderRecognitionTable("recognized-pipes-table", [], ["pipe_id", "from_node", "to_node", "length_m", "diameter_mm", "material"]);
   toggleRecognitionDownloads(false);
-  updateRecognitionStatus("image waiting", "0 pipes / 0 nodes");
+  updateRecognitionStatus("drawing waiting", "0 pipes / 0 nodes");
   drawRecognitionCanvas();
 }
 
@@ -422,19 +441,22 @@ function drawRecognitionCanvas(segments = [], nodes = []) {
   const ctx = canvas.getContext("2d");
   const image = state.drawingImage;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  if (!image) {
+  if (!image && !segments.length && !nodes.length) {
     $("drawing-empty-state").style.display = "grid";
     return;
   }
   $("drawing-empty-state").style.display = "none";
-  const scale = Math.min(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
-  const width = image.naturalWidth * scale;
-  const height = image.naturalHeight * scale;
+  const frame = recognitionFrameBounds(segments, nodes);
+  const sourceWidth = image ? image.naturalWidth : frame.width;
+  const sourceHeight = image ? image.naturalHeight : frame.height;
+  const scale = Math.min(canvas.width / sourceWidth, canvas.height / sourceHeight);
+  const width = sourceWidth * scale;
+  const height = sourceHeight * scale;
   const offsetX = (canvas.width - width) / 2;
   const offsetY = (canvas.height - height) / 2;
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(image, offsetX, offsetY, width, height);
+  if (image) ctx.drawImage(image, offsetX, offsetY, width, height);
   ctx.lineCap = "round";
   ctx.lineWidth = 3;
   ctx.strokeStyle = "#2563eb";
@@ -458,21 +480,24 @@ function drawRecognitionCanvas(segments = [], nodes = []) {
 }
 
 async function analyzeDrawingImage() {
-  if (!state.drawingImage || !state.drawingFile) {
-    updateRecognitionStatus("image required", "0 pipes / 0 nodes");
+  if (!state.drawingFile) {
+    updateRecognitionStatus("drawing file required", "0 pipes / 0 nodes");
     return;
   }
-  updateRecognitionStatus("analyzing", "OpenCV + Gemini");
+  if (state.drawingFileType === "unknown") {
+    updateRecognitionStatus("unsupported file", "JPG / PNG / PDF / DWG / DXF");
+    return;
+  }
+  updateRecognitionStatus("analyzing", recognitionRouteLabel(state.drawingFileType));
   $("analyze-drawing").disabled = true;
   try {
     const serverResult = await recognizeDrawingGeometryWithApi(state.drawingFile);
     state.drawingRecognition = serverResult.recognition;
+    state.drawingFileType = serverResult.recognition.file_type || state.drawingFileType;
     renderDrawingRecognition(serverResult.assets);
   } catch (error) {
-    console.warn("Server recognition failed, using browser fallback.", error);
-    state.drawingRecognition = recognizeDrawingGeometry(state.drawingImage);
-    renderDrawingRecognition();
-    updateRecognitionStatus("browser fallback", `${state.drawingAssets.pipes.length} pipes / ${state.drawingAssets.nodes.length} nodes`);
+    console.warn("Server recognition failed.", error);
+    updateRecognitionStatus("recognition failed", error.message || "server error");
   } finally {
     $("analyze-drawing").disabled = false;
   }
@@ -480,14 +505,20 @@ async function analyzeDrawingImage() {
 
 function renderDrawingRecognition(prebuiltAssets = null) {
   if (!state.drawingRecognition) return;
-  const assets = prebuiltAssets || dashboardAssetsFromRecognition(state.drawingRecognition);
+  if (!prebuiltAssets) {
+    updateRecognitionStatus("recognition incomplete", "server assets required");
+    return;
+  }
+  const assets = prebuiltAssets;
   state.drawingAssets = assets;
   drawRecognitionCanvas(state.drawingRecognition.segments, state.drawingRecognition.nodes);
   $("recognized-pipe-count").textContent = assets.pipes.length;
   $("recognized-node-count").textContent = Math.max(assets.nodes.length - assets.reservoirs.length, 0);
-  $("recognized-image-size").textContent = `${state.drawingRecognition.width} x ${state.drawingRecognition.height}`;
+  const width = Number(state.drawingRecognition.width || 0);
+  const height = Number(state.drawingRecognition.height || 0);
+  $("recognized-image-size").textContent = width && height ? `${width} x ${height}` : state.drawingRecognition.filename || state.drawingFile?.name || "--";
   $("recognized-export-state").textContent = assets.pipes.length ? "준비" : "확인";
-  updateRecognitionStatus("analysis ready", `${assets.pipes.length} pipes / ${assets.nodes.length} nodes`);
+  updateRecognitionStatus(recognitionReadyLabel(state.drawingRecognition.file_type), `${assets.pipes.length} pipes / ${assets.nodes.length} nodes`);
   renderRecognitionTable("recognized-nodes-table", assets.nodes, ["node_id", "x", "y", "node_type", "dma_id"]);
   renderRecognitionTable("recognized-pipes-table", assets.pipes, ["pipe_id", "from_node", "to_node", "length_m", "diameter_mm", "material"]);
   toggleRecognitionDownloads(Boolean(assets.nodes.length && assets.pipes.length));
@@ -495,13 +526,14 @@ function renderDrawingRecognition(prebuiltAssets = null) {
 }
 
 async function recognizeDrawingGeometryWithApi(file) {
-  const imageBase64 = await fileToBase64(file);
+  const fileBase64 = await fileToBase64(file);
   const response = await fetch("/api/recognize-drawing", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      image_base64: imageBase64,
-      mime_type: file.type || "image/png",
+      file_base64: fileBase64,
+      filename: file.name || "",
+      mime_type: file.type || mimeTypeFromFilename(file.name),
       min_line_length: Number($("drawing-min-line").value || 45),
       merge_tolerance_px: Number($("drawing-merge-tolerance").value || 18),
       scale_m_per_px: Number($("drawing-scale").value || 1),
@@ -516,6 +548,59 @@ async function recognizeDrawingGeometryWithApi(file) {
   return payload;
 }
 
+function classifyDrawingFile(file) {
+  const name = String(file.name || "").toLowerCase();
+  const mimeType = String(file.type || "").toLowerCase();
+  if (mimeType === "image/png" || mimeType === "image/jpeg" || /\.(png|jpe?g)$/.test(name)) return "image";
+  if (mimeType === "application/pdf" || name.endsWith(".pdf")) return "pdf";
+  if (/\.(dwg|dxf)$/.test(name) || mimeType.includes("dwg") || mimeType.includes("autocad")) return "cad";
+  return "unknown";
+}
+
+function mimeTypeFromFilename(filename) {
+  const name = String(filename || "").toLowerCase();
+  if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
+  if (name.endsWith(".png")) return "image/png";
+  if (name.endsWith(".pdf")) return "application/pdf";
+  if (name.endsWith(".dwg")) return "application/x-dwg";
+  if (name.endsWith(".dxf")) return "application/dxf";
+  return "application/octet-stream";
+}
+
+function recognitionRouteLabel(fileType) {
+  if (fileType === "pdf") return "PDF geometry route";
+  if (fileType === "cad") return "CAD parser route";
+  return "Gemini vision + geometry candidates";
+}
+
+function recognitionReadyLabel(fileType) {
+  if (fileType === "pdf") return "PDF analysis ready";
+  if (fileType === "cad") return "CAD analysis ready";
+  return "image analysis ready";
+}
+
+function recognitionFrameBounds(segments, nodes) {
+  const recognition = state.drawingRecognition || {};
+  const width = Number(recognition.width || 0);
+  const height = Number(recognition.height || 0);
+  if (width > 0 && height > 0) return { width, height };
+  const xs = [];
+  const ys = [];
+  for (const segment of segments) {
+    xs.push(Number(segment.x1 || 0), Number(segment.x2 || 0));
+    ys.push(Number(segment.y1 || 0), Number(segment.y2 || 0));
+  }
+  for (const node of nodes) {
+    xs.push(Number(node.x || 0));
+    ys.push(Number(node.y || 0));
+  }
+  if (!xs.length || !ys.length) return { width: 1120, height: 620 };
+  return {
+    width: Math.max(1, Math.ceil(Math.max(...xs) + 20)),
+    height: Math.max(1, Math.ceil(Math.max(...ys) + 20)),
+  };
+}
+
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -523,158 +608,6 @@ function fileToBase64(file) {
     reader.onerror = () => reject(reader.error || new Error("file read failed"));
     reader.readAsDataURL(file);
   });
-}
-
-function recognizeDrawingGeometry(image) {
-  const maxWidth = 900;
-  const scale = Math.min(1, maxWidth / image.naturalWidth);
-  const width = Math.max(1, Math.round(image.naturalWidth * scale));
-  const height = Math.max(1, Math.round(image.naturalHeight * scale));
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  ctx.drawImage(image, 0, 0, width, height);
-  const { data } = ctx.getImageData(0, 0, width, height);
-  const dark = (x, y) => {
-    const index = (y * width + x) * 4;
-    const avg = (data[index] + data[index + 1] + data[index + 2]) / 3;
-    return data[index + 3] > 0 && avg < 165;
-  };
-  const minLine = Number($("drawing-min-line").value || 45);
-  const tolerance = Number($("drawing-merge-tolerance").value || 18);
-  const segments = [
-    ...scanDarkRuns(width, height, dark, "h", minLine),
-    ...scanDarkRuns(width, height, dark, "v", minLine),
-  ];
-  const mergedSegments = mergeSimilarSegments(segments, tolerance);
-  const nodes = mergeSegmentEndpoints(mergedSegments, tolerance);
-  return { width, height, segments: mergedSegments, nodes };
-}
-
-function scanDarkRuns(width, height, dark, axis, minLength) {
-  const segments = [];
-  const step = 4;
-  if (axis === "h") {
-    for (let y = 0; y < height; y += step) {
-      let start = -1;
-      for (let x = 0; x < width; x += 1) {
-        if (dark(x, y)) {
-          if (start < 0) start = x;
-        } else if (start >= 0) {
-          if (x - start >= minLength) segments.push({ x1: start, y1: y, x2: x - 1, y2: y, axis });
-          start = -1;
-        }
-      }
-      if (start >= 0 && width - start >= minLength) segments.push({ x1: start, y1: y, x2: width - 1, y2: y, axis });
-    }
-  } else {
-    for (let x = 0; x < width; x += step) {
-      let start = -1;
-      for (let y = 0; y < height; y += 1) {
-        if (dark(x, y)) {
-          if (start < 0) start = y;
-        } else if (start >= 0) {
-          if (y - start >= minLength) segments.push({ x1: x, y1: start, x2: x, y2: y - 1, axis });
-          start = -1;
-        }
-      }
-      if (start >= 0 && height - start >= minLength) segments.push({ x1: x, y1: start, x2: x, y2: height - 1, axis });
-    }
-  }
-  return segments;
-}
-
-function mergeSimilarSegments(segments, tolerance) {
-  const merged = [];
-  const sorted = [...segments].sort((a, b) => segmentLength(b) - segmentLength(a));
-  for (const segment of sorted) {
-    if (merged.some((item) => similarSegment(item, segment, tolerance))) continue;
-    merged.push({ ...segment, id: `L_IMG_${merged.length + 1}`, length_px: segmentLength(segment), angle_deg: segment.axis === "h" ? 0 : 90 });
-    if (merged.length >= 240) break;
-  }
-  return merged;
-}
-
-function similarSegment(a, b, tolerance) {
-  if (a.axis !== b.axis) return false;
-  if (a.axis === "h") return Math.abs(a.y1 - b.y1) <= tolerance && rangesOverlap(a.x1, a.x2, b.x1, b.x2, tolerance);
-  return Math.abs(a.x1 - b.x1) <= tolerance && rangesOverlap(a.y1, a.y2, b.y1, b.y2, tolerance);
-}
-
-function rangesOverlap(a1, a2, b1, b2, tolerance) {
-  return Math.max(Math.min(a1, a2), Math.min(b1, b2)) <= Math.min(Math.max(a1, a2), Math.max(b1, b2)) + tolerance;
-}
-
-function segmentLength(segment) {
-  return Math.hypot(segment.x2 - segment.x1, segment.y2 - segment.y1);
-}
-
-function mergeSegmentEndpoints(segments, tolerance) {
-  const nodes = [];
-  for (const segment of segments) {
-    for (const point of [
-      { x: segment.x1, y: segment.y1 },
-      { x: segment.x2, y: segment.y2 },
-    ]) {
-      const match = nodes.find((node) => Math.hypot(node.x - point.x, node.y - point.y) <= tolerance);
-      if (match) {
-        match.x = (match.x * match.hits + point.x) / (match.hits + 1);
-        match.y = (match.y * match.hits + point.y) / (match.hits + 1);
-        match.hits += 1;
-      } else {
-        nodes.push({ id: `N_IMG_${nodes.length + 1}`, x: point.x, y: point.y, hits: 1 });
-      }
-    }
-  }
-  return nodes.map((node) => ({ ...node, x: Number(node.x.toFixed(1)), y: Number(node.y.toFixed(1)) }));
-}
-
-function dashboardAssetsFromRecognition(recognition) {
-  const scale = Math.max(Number($("drawing-scale").value || 1), 0.01);
-  const diameter = Number($("drawing-diameter").value || 150);
-  const material = $("drawing-material").value || "PVC";
-  const nodeIdById = new Map(recognition.nodes.map((node, index) => [node.id, `J_IMG_${index + 1}`]));
-  const nodes = recognition.nodes.map((node, index) => ({
-    node_id: `J_IMG_${index + 1}`,
-    x: Number((node.x * scale).toFixed(2)),
-    y: Number((node.y * scale).toFixed(2)),
-    elevation_m: 30,
-    base_demand_lps: 0.8,
-    node_type: "junction",
-    dma_id: "IMG_IMPORT",
-  }));
-  const pipes = [];
-  for (const segment of recognition.segments) {
-    const start = nearestRecognitionNode(recognition.nodes, segment.x1, segment.y1);
-    const end = nearestRecognitionNode(recognition.nodes, segment.x2, segment.y2);
-    if (!start || !end || start.id === end.id) continue;
-    pipes.push({
-      pipe_id: `P_IMG_${pipes.length + 1}`,
-      from_node: nodeIdById.get(start.id),
-      to_node: nodeIdById.get(end.id),
-      length_m: Number((segment.length_px * scale).toFixed(2)),
-      diameter_mm: diameter,
-      material,
-      install_year: CURRENT_YEAR,
-      bend_count: 0,
-      valve_count: 0,
-      repair_count: 0,
-      leak_history_count: 0,
-      soil_ph: 7,
-      soil_resistivity_ohm_cm: 3000,
-      traffic_load_index: 0.3,
-      burst_history_count: 0,
-    });
-  }
-  const reservoirs = [];
-  if (nodes.length) {
-    const source = [...nodes].sort((a, b) => a.x - b.x)[0];
-    nodes.unshift({ node_id: "R_IMG_1", x: Number((source.x - 80 * scale).toFixed(2)), y: source.y, elevation_m: 35, base_demand_lps: 0, node_type: "reservoir", dma_id: "SOURCE" });
-    reservoirs.push({ node_id: "R_IMG_1", head_m: 58 });
-    pipes.unshift({ pipe_id: "P_IMG_SOURCE", from_node: "R_IMG_1", to_node: source.node_id, length_m: Number((80 * scale).toFixed(2)), diameter_mm: Math.max(diameter, 250), material: "ductile_iron", install_year: CURRENT_YEAR, bend_count: 0, valve_count: 0, repair_count: 0, leak_history_count: 0, soil_ph: 7, soil_resistivity_ohm_cm: 3000, traffic_load_index: 0.2, burst_history_count: 0 });
-  }
-  return { nodes, pipes, reservoirs };
 }
 
 function applyRecognitionAssetsToDashboard(assets) {
@@ -747,10 +680,6 @@ function fitMapToCurrentNetwork() {
   const height = Math.max(maxY - minY, 120);
   state.mapCenter = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
   state.mapZoom = clamp(Math.min(1120 / (width + 180), 650 / (height + 160)), 0.45, 2.8);
-}
-
-function nearestRecognitionNode(nodes, x, y) {
-  return [...nodes].sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
 }
 
 function renderRecognitionTable(id, rows, columns) {

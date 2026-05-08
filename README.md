@@ -129,7 +129,7 @@ For Streamlit Community Cloud, create a second app from the same GitHub reposito
 app/drawing_recognition_app.py
 ```
 
-This tool accepts `.jpg`, `.jpeg`, and `.png` drawings. It runs OpenCV first to extract line, node/symbol, and pipe candidates, then builds a first internal binary payload from that structure. Gemini Vision can be enabled from the sidebar when `GEMINI_API_KEY` or `GOOGLE_API_KEY` is configured, or when an API key is entered in the app.
+This tool accepts `.jpg`, `.jpeg`, `.png`, `.pdf`, `.dwg`, and `.dxf` drawings. Uploads are routed by file type: JPG/PNG use Gemini Vision semantic hints plus geometry candidates, PDF uses vector geometry/text extraction first with scanned-page image fallback when a PDF renderer is installed, and DWG/DXF use the CAD parsing route for layer/block/polyline/text-oriented extraction.
 
 The recognition output also creates dashboard-ready asset candidates:
 
@@ -138,7 +138,7 @@ The recognition output also creates dashboard-ready asset candidates:
 - `pipes.csv`: first-pass pipe endpoints, length, diameter, material, and aging metadata.
 - `reservoirs.csv`: a virtual source reservoir for previewing the imported network.
 
-The image pipeline should be treated as a drafting assistant. OpenCV extracts geometry deterministically, Gemini provides semantic hints, and the resulting network should still be checked and edited on the dashboard before use.
+The recognition pipeline should be treated as a drafting assistant. Gemini, geometry candidates, PDF/CAD vector extraction, and topology reconstruction provide a first editable network that should still be checked and refined on the dashboard before use.
 
 ## Dynamic Household Demand
 
