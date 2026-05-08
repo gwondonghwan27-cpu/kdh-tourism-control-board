@@ -1,9 +1,9 @@
-"""Recognize early water-network drawing features from JPG/PNG files.
+"""Recognize water-network drawing features from image, PDF, and CAD files.
 
-The OpenCV stage extracts deterministic geometry candidates. The optional
-Gemini stage reads the same drawing semantically and returns structured hints
-that can be compared against the OpenCV result before creating production
-network assets.
+The recognizer first routes each upload by file type. Image files use Gemini
+semantic hints plus deterministic geometry candidates, vector PDFs/CAD files
+prefer native geometry extraction, and scanned PDFs can fall back to the image
+route when a PDF renderer is available.
 """
 
 from __future__ import annotations
@@ -19,6 +19,19 @@ import numpy as np
 
 
 SUPPORTED_IMAGE_MIME_TYPES = {"image/jpeg", "image/png"}
+SUPPORTED_PDF_MIME_TYPES = {"application/pdf"}
+SUPPORTED_CAD_MIME_TYPES = {
+    "application/acad",
+    "application/autocad",
+    "application/dwg",
+    "application/x-acad",
+    "application/x-autocad",
+    "application/x-dwg",
+    "image/vnd.dwg",
+}
+SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+SUPPORTED_PDF_EXTENSIONS = {".pdf"}
+SUPPORTED_CAD_EXTENSIONS = {".dwg", ".dxf"}
 
 
 @dataclass(frozen=True)
@@ -32,6 +45,50 @@ class OpenCVRecognitionResult:
     node_candidates: list[dict[str, float]]
     pipe_candidates: list[dict[str, Any]]
     binary_payload: bytes
+
+    def summary(self) -> dict[str, int]:
+        return {
+            "width": self.width,
+            "height": self.height,
+            "line_segments": len(self.line_segments),
+            "node_candidates": len(self.node_candidates),
+            "pipe_candidates": len(self.pipe_candidates),
+            "binary_payload_bytes": len(self.binary_payload),
+        }
+
+
+@dataclass(frozen=True)
+class CadRecognitionResult:
+    width: int
+    height: int
+    line_segments: list[dict[str, float]]
+    node_candidates: list[dict[str, float]]
+    pipe_candidates: list[dict[str, Any]]
+    binary_payload: bytes
+    cad_format: str
+    warnings: list[str] = field(default_factory=list)
+
+    def summary(self) -> dict[str, int]:
+        return {
+            "width": self.width,
+            "height": self.height,
+            "line_segments": len(self.line_segments),
+            "node_candidates": len(self.node_candidates),
+            "pipe_candidates": len(self.pipe_candidates),
+            "binary_payload_bytes": len(self.binary_payload),
+        }
+
+
+@dataclass(frozen=True)
+class PdfRecognitionResult:
+    width: int
+    height: int
+    line_segments: list[dict[str, float]]
+    node_candidates: list[dict[str, float]]
+    pipe_candidates: list[dict[str, Any]]
+    binary_payload: bytes
+    pdf_mode: str
+    warnings: list[str] = field(default_factory=list)
 
     def summary(self) -> dict[str, int]:
         return {
@@ -196,8 +253,252 @@ def analyze_drawing_image(
     )
 
 
+def detect_drawing_file_type(
+    file_bytes: bytes,
+    *,
+    filename: str = "",
+    mime_type: str = "",
+) -> str:
+    """Classify an uploaded drawing before selecting an image or CAD route."""
+
+    suffix = _file_suffix(filename)
+    normalized_mime = (mime_type or "").split(";")[0].strip().lower()
+    header = file_bytes[:16]
+
+    if suffix in SUPPORTED_IMAGE_EXTENSIONS or normalized_mime in SUPPORTED_IMAGE_MIME_TYPES:
+        return "image"
+    if suffix in SUPPORTED_PDF_EXTENSIONS or normalized_mime in SUPPORTED_PDF_MIME_TYPES:
+        return "pdf"
+    if suffix in SUPPORTED_CAD_EXTENSIONS or normalized_mime in SUPPORTED_CAD_MIME_TYPES:
+        return "cad"
+    if header.startswith(b"\xff\xd8\xff") or header.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image"
+    if header.startswith(b"%PDF"):
+        return "pdf"
+    if header.startswith(b"AC10") or b"SECTION" in file_bytes[:512].upper():
+        return "cad"
+    return "unknown"
+
+
+def analyze_drawing_cad(
+    cad_bytes: bytes,
+    *,
+    filename: str = "",
+    mime_type: str = "",
+    merge_tolerance_px: float = 16.0,
+) -> CadRecognitionResult:
+    """Route CAD drawings through vector extraction instead of image masks."""
+
+    suffix = _file_suffix(filename)
+    warnings: list[str] = []
+    if suffix == ".dxf" or _looks_like_ascii_dxf(cad_bytes):
+        line_segments, width, height, warnings = _parse_ascii_dxf_lines(cad_bytes)
+        nodes = _merge_line_endpoints(line_segments, merge_tolerance_px)
+        pipes = _pipes_from_lines(line_segments, nodes)
+        cad_format = "dxf"
+    elif suffix == ".dwg" or cad_bytes.startswith(b"AC10"):
+        cad_format = "dwg"
+        line_segments = []
+        nodes = []
+        pipes = []
+        width = 0
+        height = 0
+        warnings.append(
+            "DWG file was routed to the CAD recognizer, but binary DWG geometry "
+            "extraction needs an external CAD converter or parser. Export DXF for "
+            "the current vector route."
+        )
+    else:
+        cad_format = suffix.lstrip(".") or (mime_type or "unknown")
+        line_segments = []
+        nodes = []
+        pipes = []
+        width = 0
+        height = 0
+        warnings.append("The upload was routed as CAD, but no supported CAD extractor matched it.")
+
+    dashboard_assets = build_dashboard_assets_from_candidates(
+        nodes,
+        pipes,
+        image_width=max(width, 1),
+        image_height=max(height, 1),
+    )
+    binary_payload = json.dumps(
+        {
+            "file": {
+                "filename": filename,
+                "mime_type": mime_type,
+                "drawing_file_type": "cad",
+                "cad_format": cad_format,
+            },
+            "image": {"width": width, "height": height, "mime_type": mime_type},
+            "nodes": nodes,
+            "pipes": pipes,
+            "cad_warnings": warnings,
+            "dashboard_assets": dashboard_assets.to_dict(),
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+    return CadRecognitionResult(
+        width=width,
+        height=height,
+        line_segments=line_segments,
+        node_candidates=nodes,
+        pipe_candidates=pipes,
+        binary_payload=binary_payload,
+        cad_format=cad_format,
+        warnings=warnings,
+    )
+
+
+def analyze_drawing_pdf(
+    pdf_bytes: bytes,
+    *,
+    filename: str = "",
+    mime_type: str = "application/pdf",
+    min_line_length: int = 35,
+    merge_tolerance_px: float = 16.0,
+) -> PdfRecognitionResult:
+    """Route PDF drawings through vector extraction before scanned-image fallback."""
+
+    warnings: list[str] = []
+    line_segments, width, height, fitz_warnings = _extract_pdf_vectors_with_pymupdf(pdf_bytes)
+    warnings.extend(fitz_warnings)
+    pdf_mode = "vector"
+
+    if not line_segments:
+        fallback_segments, fallback_width, fallback_height, fallback_warnings = _parse_uncompressed_pdf_vector_lines(pdf_bytes)
+        warnings.extend(fallback_warnings)
+        line_segments = fallback_segments
+        width = fallback_width
+        height = fallback_height
+        if line_segments:
+            pdf_mode = "vector_uncompressed"
+
+    if not line_segments:
+        rendered = _render_pdf_first_page_to_image_route(
+            pdf_bytes,
+            min_line_length=min_line_length,
+            merge_tolerance_px=merge_tolerance_px,
+        )
+        if rendered:
+            rendered_result, render_warnings = rendered
+            warnings.extend(render_warnings)
+            payload = json.loads(rendered_result.binary_payload.decode("utf-8"))
+            assets = build_dashboard_assets_from_recognition(rendered_result)
+            binary_payload = json.dumps(
+                {
+                    "file": {
+                        "filename": filename,
+                        "mime_type": mime_type,
+                        "drawing_file_type": "pdf",
+                        "pdf_mode": "scanned_image",
+                    },
+                    "image": {"width": rendered_result.width, "height": rendered_result.height, "mime_type": "image/png"},
+                    "nodes": payload.get("nodes", []),
+                    "pipes": payload.get("pipes", []),
+                    "pdf_warnings": warnings,
+                    "dashboard_assets": assets.to_dict(),
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            return PdfRecognitionResult(
+                width=rendered_result.width,
+                height=rendered_result.height,
+                line_segments=rendered_result.line_segments,
+                node_candidates=payload.get("nodes", []),
+                pipe_candidates=rendered_result.pipe_candidates,
+                binary_payload=binary_payload,
+                pdf_mode="scanned_image",
+                warnings=warnings,
+            )
+        pdf_mode = "unresolved"
+
+    nodes = _merge_line_endpoints(line_segments, merge_tolerance_px)
+    pipes = _pipes_from_lines(line_segments, nodes)
+    if not line_segments:
+        warnings.append(
+            "PDF file was routed correctly, but no vector geometry could be extracted. "
+            "Install PyMuPDF to enable scanned PDF rendering fallback."
+        )
+
+    assets = build_dashboard_assets_from_candidates(
+        nodes,
+        pipes,
+        image_width=max(width, 1),
+        image_height=max(height, 1),
+    )
+    binary_payload = json.dumps(
+        {
+            "file": {
+                "filename": filename,
+                "mime_type": mime_type,
+                "drawing_file_type": "pdf",
+                "pdf_mode": pdf_mode,
+            },
+            "image": {"width": width, "height": height, "mime_type": mime_type},
+            "nodes": nodes,
+            "pipes": pipes,
+            "pdf_warnings": warnings,
+            "dashboard_assets": assets.to_dict(),
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return PdfRecognitionResult(
+        width=width,
+        height=height,
+        line_segments=line_segments,
+        node_candidates=nodes,
+        pipe_candidates=pipes,
+        binary_payload=binary_payload,
+        pdf_mode=pdf_mode,
+        warnings=warnings,
+    )
+
+
+def recognize_drawing_file(
+    file_bytes: bytes,
+    *,
+    filename: str = "",
+    mime_type: str = "",
+    min_line_length: int = 35,
+    merge_tolerance_px: float = 16.0,
+) -> tuple[str, OpenCVRecognitionResult | PdfRecognitionResult | CadRecognitionResult]:
+    """Recognize an uploaded drawing through the route selected by file type."""
+
+    drawing_file_type = detect_drawing_file_type(file_bytes, filename=filename, mime_type=mime_type)
+    if drawing_file_type == "image":
+        image_mime_type = _normalize_image_mime_type(filename, mime_type)
+        return drawing_file_type, analyze_drawing_image(
+            file_bytes,
+            image_mime_type,
+            min_line_length=min_line_length,
+            merge_tolerance_px=merge_tolerance_px,
+        )
+    if drawing_file_type == "pdf":
+        return drawing_file_type, analyze_drawing_pdf(
+            file_bytes,
+            filename=filename,
+            mime_type=mime_type or "application/pdf",
+            min_line_length=min_line_length,
+            merge_tolerance_px=merge_tolerance_px,
+        )
+    if drawing_file_type == "cad":
+        return drawing_file_type, analyze_drawing_cad(
+            file_bytes,
+            filename=filename,
+            mime_type=mime_type,
+            merge_tolerance_px=merge_tolerance_px,
+        )
+    raise ValueError("Unsupported drawing file type. Use JPG, PNG, PDF, DWG, or DXF.")
+
+
 def build_dashboard_assets_from_recognition(
-    result: OpenCVRecognitionResult,
+    result: OpenCVRecognitionResult | PdfRecognitionResult | CadRecognitionResult,
     *,
     scale_m_per_px: float = 1.0,
     default_diameter_mm: float = 150.0,
@@ -206,7 +507,7 @@ def build_dashboard_assets_from_recognition(
     default_demand_lps: float = 0.8,
     include_virtual_reservoir: bool = True,
 ) -> DashboardAssetExport:
-    """Convert an OpenCV recognition result into dashboard-compatible assets."""
+    """Convert a recognition result into dashboard-compatible assets."""
 
     payload = json.loads(result.binary_payload.decode("utf-8"))
     return build_dashboard_assets_from_candidates(
@@ -327,9 +628,9 @@ def build_dashboard_assets_from_candidates(
         warnings.append("A virtual reservoir and source pipe were added for dashboard preview.")
 
     if not dashboard_nodes:
-        warnings.append("No dashboard nodes were created from the image.")
+        warnings.append("No dashboard nodes were created from the drawing.")
     if not dashboard_pipes:
-        warnings.append("No dashboard pipes were created from the image.")
+        warnings.append("No dashboard pipes were created from the drawing.")
 
     return DashboardAssetExport(
         nodes=dashboard_nodes,
@@ -439,6 +740,253 @@ Prefer visible labels and visual evidence over guesses. Use Korean for free-text
         )
     except Exception as exc:  # pragma: no cover - network/API runtime path
         return GeminiVisionResult(model=model, raw_text="", error=str(exc))
+
+
+def _file_suffix(filename: str) -> str:
+    match = re.search(r"(\.[A-Za-z0-9]+)$", filename or "")
+    return match.group(1).lower() if match else ""
+
+
+def _normalize_image_mime_type(filename: str, mime_type: str) -> str:
+    normalized_mime = (mime_type or "").split(";")[0].strip().lower()
+    if normalized_mime in SUPPORTED_IMAGE_MIME_TYPES:
+        return normalized_mime
+    suffix = _file_suffix(filename)
+    if suffix in {".jpg", ".jpeg"}:
+        return "image/jpeg"
+    if suffix == ".png":
+        return "image/png"
+    return "image/png"
+
+
+def _extract_pdf_vectors_with_pymupdf(pdf_bytes: bytes) -> tuple[list[dict[str, float]], int, int, list[str]]:
+    try:
+        import fitz  # type: ignore[import-not-found]
+    except ImportError:
+        return [], 0, 0, ["PyMuPDF is not installed, so native vector PDF extraction was skipped."]
+
+    try:
+        document = fitz.open(stream=pdf_bytes, filetype="pdf")
+        if not document.page_count:
+            return [], 0, 0, ["PDF has no pages."]
+        page = document[0]
+        page_rect = page.rect
+        raw_segments: list[tuple[float, float, float, float]] = []
+        for drawing in page.get_drawings():
+            for item in drawing.get("items", []):
+                if not item or item[0] != "l":
+                    continue
+                start = item[1]
+                end = item[2]
+                raw_segments.append((float(start.x), float(start.y), float(end.x), float(end.y)))
+        if not raw_segments:
+            return [], int(page_rect.width), int(page_rect.height), ["No vector line drawings were found on the first PDF page."]
+        segments, width, height = _normalize_cad_segments(raw_segments)
+        return segments, width, height, []
+    except Exception as exc:  # pragma: no cover - depends on optional package/runtime PDFs
+        return [], 0, 0, [f"Vector PDF extraction failed: {exc}"]
+
+
+def _render_pdf_first_page_to_image_route(
+    pdf_bytes: bytes,
+    *,
+    min_line_length: int,
+    merge_tolerance_px: float,
+) -> tuple[OpenCVRecognitionResult, list[str]] | None:
+    try:
+        import fitz  # type: ignore[import-not-found]
+    except ImportError:
+        return None
+
+    try:
+        document = fitz.open(stream=pdf_bytes, filetype="pdf")
+        if not document.page_count:
+            return None
+        page = document[0]
+        pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+        image_bytes = pixmap.tobytes("png")
+        result = analyze_drawing_image(
+            image_bytes,
+            "image/png",
+            min_line_length=min_line_length,
+            merge_tolerance_px=merge_tolerance_px,
+        )
+        return result, ["Scanned PDF fallback rendered the first page to PNG and used the image route."]
+    except Exception:
+        return None
+
+
+def _parse_uncompressed_pdf_vector_lines(pdf_bytes: bytes) -> tuple[list[dict[str, float]], int, int, list[str]]:
+    text = pdf_bytes.decode("latin1", errors="ignore")
+    token_pattern = re.compile(r"[-+]?(?:\d+\.\d+|\d+|\.\d+)|[A-Za-z*]+")
+    tokens = token_pattern.findall(text)
+    stack: list[float] = []
+    current: tuple[float, float] | None = None
+    raw_segments: list[tuple[float, float, float, float]] = []
+
+    for token in tokens:
+        try:
+            stack.append(float(token))
+            continue
+        except ValueError:
+            pass
+
+        if token == "m" and len(stack) >= 2:
+            current = (stack[-2], stack[-1])
+            stack.clear()
+        elif token == "l" and len(stack) >= 2 and current is not None:
+            target = (stack[-2], stack[-1])
+            raw_segments.append((current[0], current[1], target[0], target[1]))
+            current = target
+            stack.clear()
+        elif token == "re" and len(stack) >= 4:
+            x, y, width, height = stack[-4], stack[-3], stack[-2], stack[-1]
+            raw_segments.extend(
+                [
+                    (x, y, x + width, y),
+                    (x + width, y, x + width, y + height),
+                    (x + width, y + height, x, y + height),
+                    (x, y + height, x, y),
+                ]
+            )
+            stack.clear()
+        elif token in {"S", "s", "f", "F", "n", "h", "q", "Q", "cm", "w", "rg", "RG"}:
+            if token != "h":
+                stack.clear()
+
+    if not raw_segments:
+        return [], 0, 0, ["No uncompressed PDF path line commands were found."]
+    segments, width, height = _normalize_cad_segments(raw_segments)
+    return segments, width, height, []
+
+
+def _looks_like_ascii_dxf(cad_bytes: bytes) -> bool:
+    sample = cad_bytes[:2048].decode("utf-8", errors="ignore").upper()
+    return "SECTION" in sample and "ENTITIES" in sample
+
+
+def _parse_ascii_dxf_lines(cad_bytes: bytes) -> tuple[list[dict[str, float]], int, int, list[str]]:
+    text = cad_bytes.decode("utf-8", errors="ignore")
+    raw_pairs = [line.strip() for line in text.splitlines()]
+    pairs: list[tuple[str, str]] = []
+    for index in range(0, len(raw_pairs) - 1, 2):
+        pairs.append((raw_pairs[index], raw_pairs[index + 1]))
+
+    raw_segments: list[tuple[float, float, float, float]] = []
+    cursor = 0
+    while cursor < len(pairs):
+        code, value = pairs[cursor]
+        if code == "0" and value == "LINE":
+            segment, cursor = _read_dxf_line_entity(pairs, cursor + 1)
+            if segment:
+                raw_segments.append(segment)
+            continue
+        if code == "0" and value == "LWPOLYLINE":
+            segments, cursor = _read_dxf_lwpolyline_entity(pairs, cursor + 1)
+            raw_segments.extend(segments)
+            continue
+        cursor += 1
+
+    warnings: list[str] = []
+    if not raw_segments:
+        warnings.append("No LINE or LWPOLYLINE entities were extracted from the CAD drawing.")
+        return [], 0, 0, warnings
+
+    normalized_segments, width, height = _normalize_cad_segments(raw_segments)
+    return normalized_segments, width, height, warnings
+
+
+def _read_dxf_line_entity(
+    pairs: list[tuple[str, str]],
+    cursor: int,
+) -> tuple[tuple[float, float, float, float] | None, int]:
+    values: dict[str, float] = {}
+    while cursor < len(pairs):
+        code, value = pairs[cursor]
+        if code == "0":
+            break
+        if code in {"10", "20", "11", "21"}:
+            try:
+                values[code] = float(value)
+            except ValueError:
+                pass
+        cursor += 1
+    if {"10", "20", "11", "21"}.issubset(values):
+        return (values["10"], values["20"], values["11"], values["21"]), cursor
+    return None, cursor
+
+
+def _read_dxf_lwpolyline_entity(
+    pairs: list[tuple[str, str]],
+    cursor: int,
+) -> tuple[list[tuple[float, float, float, float]], int]:
+    points: list[tuple[float, float]] = []
+    pending_x: float | None = None
+    closed = False
+    while cursor < len(pairs):
+        code, value = pairs[cursor]
+        if code == "0":
+            break
+        if code == "70":
+            try:
+                closed = bool(int(float(value)) & 1)
+            except ValueError:
+                closed = False
+        elif code == "10":
+            try:
+                pending_x = float(value)
+            except ValueError:
+                pending_x = None
+        elif code == "20" and pending_x is not None:
+            try:
+                points.append((pending_x, float(value)))
+            except ValueError:
+                pass
+            pending_x = None
+        cursor += 1
+
+    segments = [
+        (points[index][0], points[index][1], points[index + 1][0], points[index + 1][1])
+        for index in range(len(points) - 1)
+    ]
+    if closed and len(points) > 2:
+        segments.append((points[-1][0], points[-1][1], points[0][0], points[0][1]))
+    return segments, cursor
+
+
+def _normalize_cad_segments(
+    raw_segments: list[tuple[float, float, float, float]],
+) -> tuple[list[dict[str, float]], int, int]:
+    xs = [value for x1, _, x2, _ in raw_segments for value in (x1, x2)]
+    ys = [value for _, y1, _, y2 in raw_segments for value in (y1, y2)]
+    min_x, max_x = min(xs), max(xs)
+    min_y, max_y = min(ys), max(ys)
+    margin = 20.0
+    width = int(math.ceil(max(max_x - min_x + margin * 2, 1)))
+    height = int(math.ceil(max(max_y - min_y + margin * 2, 1)))
+
+    line_segments: list[dict[str, float]] = []
+    for raw_index, (x1, y1, x2, y2) in enumerate(raw_segments):
+        nx1 = x1 - min_x + margin
+        nx2 = x2 - min_x + margin
+        ny1 = max_y - y1 + margin
+        ny2 = max_y - y2 + margin
+        length = math.hypot(nx2 - nx1, ny2 - ny1)
+        if length <= 0:
+            continue
+        line_segments.append(
+            {
+                "id": f"L_CAD_{len(line_segments) + 1}",
+                "x1": round(nx1, 2),
+                "y1": round(ny1, 2),
+                "x2": round(nx2, 2),
+                "y2": round(ny2, 2),
+                "length_px": round(length, 2),
+                "angle_deg": round(math.degrees(math.atan2(ny2 - ny1, nx2 - nx1)), 2),
+                "source_entity": f"DXF_{raw_index + 1}",
+            }
+        )
+    return line_segments, width, height
 
 
 def _import_cv2() -> Any:
