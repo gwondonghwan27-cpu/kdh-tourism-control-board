@@ -4,10 +4,14 @@ import numpy as np
 import pytest
 
 from aging_water_network.vision.drawing_recognition import (
+    analyze_drawing_cad,
+    analyze_drawing_pdf,
     _parse_json_response,
     analyze_drawing_image,
     build_dashboard_assets_from_recognition,
     call_gemini_vision,
+    detect_drawing_file_type,
+    recognize_drawing_file,
 )
 
 
@@ -25,6 +29,14 @@ def test_gemini_without_api_key_returns_configuration_error(monkeypatch):
 
     assert result.error
     assert "GEMINI_API_KEY" in result.error
+
+
+def test_detect_drawing_file_type_routes_images_and_cad_files():
+    assert detect_drawing_file_type(b"\x89PNG\r\n\x1a\n", filename="network.png", mime_type="") == "image"
+    assert detect_drawing_file_type(b"%PDF-1.4", filename="network.pdf", mime_type="") == "pdf"
+    assert detect_drawing_file_type(b"AC1027\x00\x00", filename="network.dwg", mime_type="application/octet-stream") == "cad"
+    assert detect_drawing_file_type(b"0\nSECTION\n2\nENTITIES\n0\nENDSEC\n0\nEOF\n", filename="network.dxf", mime_type="") == "cad"
+    assert detect_drawing_file_type(b"plain text", filename="network.txt", mime_type="text/plain") == "unknown"
 
 
 def test_analyze_drawing_image_extracts_synthetic_pipe_candidates():
@@ -66,6 +78,90 @@ def test_recognition_result_exports_dashboard_assets():
     assert {"node_id", "x", "y", "node_type"}.issubset(assets.nodes[0])
     assert {"pipe_id", "from_node", "to_node", "length_m", "diameter_mm"}.issubset(assets.pipes[0])
     assert assets.reservoirs
+
+
+def test_dxf_cad_route_extracts_vector_lines_into_dashboard_assets():
+    dxf = b"""0
+SECTION
+2
+ENTITIES
+0
+LINE
+8
+PIPE
+10
+0
+20
+0
+11
+100
+21
+0
+0
+LINE
+8
+PIPE
+10
+100
+20
+0
+11
+100
+21
+80
+0
+ENDSEC
+0
+EOF
+"""
+
+    result = analyze_drawing_cad(dxf, filename="network.dxf")
+    assets = build_dashboard_assets_from_recognition(result)
+
+    assert result.cad_format == "dxf"
+    assert len(result.line_segments) == 2
+    assert len(result.pipe_candidates) == 2
+    assert assets.nodes
+    assert assets.pipes
+
+
+def test_dwg_cad_route_is_detected_without_using_image_decoder():
+    drawing_type, result = recognize_drawing_file(b"AC1027 fake dwg bytes", filename="network.dwg", mime_type="application/octet-stream")
+
+    assert drawing_type == "cad"
+    assert result.cad_format == "dwg"
+    assert result.warnings
+
+
+def test_uncompressed_pdf_route_extracts_vector_lines_into_dashboard_assets():
+    pdf = b"""%PDF-1.4
+1 0 obj
+<< /Length 34 >>
+stream
+0 0 m
+100 0 l
+100 80 l
+S
+endstream
+endobj
+%%EOF
+"""
+
+    result = analyze_drawing_pdf(pdf, filename="network.pdf")
+    assets = build_dashboard_assets_from_recognition(result)
+
+    assert result.pdf_mode == "vector_uncompressed"
+    assert len(result.line_segments) == 2
+    assert len(result.pipe_candidates) == 2
+    assert assets.nodes
+    assert assets.pipes
+
+
+def test_pdf_route_is_selected_without_using_image_decoder():
+    drawing_type, result = recognize_drawing_file(b"%PDF-1.4\n%%EOF", filename="network.pdf", mime_type="application/pdf")
+
+    assert drawing_type == "pdf"
+    assert result.pdf_mode in {"unresolved", "vector_uncompressed", "vector", "scanned_image"}
 
 
 def test_blue_jpg_drawing_uses_color_masks_to_avoid_background_noise():

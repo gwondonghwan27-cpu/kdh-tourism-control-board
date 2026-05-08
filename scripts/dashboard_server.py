@@ -20,9 +20,9 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from aging_water_network.vision import (  # noqa: E402
-    analyze_drawing_image,
     build_dashboard_assets_from_recognition,
     call_gemini_vision,
+    recognize_drawing_file,
 )
 
 
@@ -103,36 +103,44 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
 
 
 def _recognize_drawing(request: dict[str, Any]) -> dict[str, Any]:
-    image_bytes = base64.b64decode(request["image_base64"])
-    mime_type = str(request.get("mime_type") or "image/png")
-    opencv_result = analyze_drawing_image(
-        image_bytes,
-        mime_type,
+    file_bytes = base64.b64decode(request.get("file_base64") or request.get("image_base64") or "")
+    mime_type = str(request.get("mime_type") or "")
+    filename = str(request.get("filename") or "")
+    drawing_file_type, recognition_result = recognize_drawing_file(
+        file_bytes,
+        filename=filename,
+        mime_type=mime_type,
         min_line_length=int(float(request.get("min_line_length") or 45)),
         merge_tolerance_px=float(request.get("merge_tolerance_px") or 18),
     )
     assets = build_dashboard_assets_from_recognition(
-        opencv_result,
+        recognition_result,
         scale_m_per_px=float(request.get("scale_m_per_px") or 1),
         default_diameter_mm=float(request.get("default_diameter_mm") or 150),
         default_material=str(request.get("default_material") or "PVC"),
         include_virtual_reservoir=True,
     )
     gemini_result = None
-    if bool(request.get("use_gemini", True)):
-        gemini_result = call_gemini_vision(image_bytes, mime_type)
+    if drawing_file_type == "image" and bool(request.get("use_gemini", True)):
+        gemini_result = call_gemini_vision(file_bytes, _image_mime_for_request(filename, mime_type))
 
-    payload = json.loads(opencv_result.binary_payload.decode("utf-8"))
+    payload = json.loads(recognition_result.binary_payload.decode("utf-8"))
     return {
         "recognition": {
-            "width": opencv_result.width,
-            "height": opencv_result.height,
-            "segments": opencv_result.line_segments,
+            "file_type": drawing_file_type,
+            "cad_format": getattr(recognition_result, "cad_format", None),
+            "pdf_mode": getattr(recognition_result, "pdf_mode", None),
+            "filename": filename,
+            "mime_type": mime_type,
+            "width": recognition_result.width,
+            "height": recognition_result.height,
+            "segments": recognition_result.line_segments,
             "nodes": payload.get("nodes", []),
-            "node_candidates": opencv_result.node_candidates,
-            "pipe_candidates": opencv_result.pipe_candidates,
-            "summary": opencv_result.summary(),
+            "node_candidates": recognition_result.node_candidates,
+            "pipe_candidates": recognition_result.pipe_candidates,
+            "summary": recognition_result.summary(),
             "gemini": _gemini_to_dict(gemini_result),
+            "warnings": payload.get("cad_warnings", []) + payload.get("pdf_warnings", []) + assets.warnings,
         },
         "assets": assets.to_dict(),
     }
@@ -147,6 +155,16 @@ def _gemini_to_dict(result: Any) -> dict[str, Any] | None:
         "raw_text": result.raw_text,
         "error": result.error,
     }
+
+
+def _image_mime_for_request(filename: str, mime_type: str) -> str:
+    normalized_mime = (mime_type or "").split(";")[0].strip().lower()
+    if normalized_mime in {"image/jpeg", "image/png"}:
+        return normalized_mime
+    suffix = Path(filename).suffix.lower()
+    if suffix in {".jpg", ".jpeg"}:
+        return "image/jpeg"
+    return "image/png"
 
 
 def _is_relative_to(path: Path, parent: Path) -> bool:

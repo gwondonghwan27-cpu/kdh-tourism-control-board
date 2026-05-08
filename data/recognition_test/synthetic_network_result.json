@@ -1,0 +1,4119 @@
+{
+  "recognition": {
+    "width": 760,
+    "height": 520,
+    "segments": [
+      {
+        "id": "L1",
+        "x1": 178.0,
+        "y1": 58.0,
+        "x2": 213.0,
+        "y2": 453.0,
+        "length_px": 396.55,
+        "angle_deg": 84.94
+      },
+      {
+        "id": "L2",
+        "x1": 203.0,
+        "y1": 64.0,
+        "x2": 228.0,
+        "y2": 344.0,
+        "length_px": 281.11,
+        "angle_deg": 84.9
+      },
+      {
+        "id": "L28",
+        "x1": 387.0,
+        "y1": 40.0,
+        "x2": 549.0,
+        "y2": 186.0,
+        "length_px": 218.08,
+        "angle_deg": 42.03
+      },
+      {
+        "id": "L3",
+        "x1": 505.0,
+        "y1": 392.0,
+        "x2": 722.0,
+        "y2": 404.0,
+        "length_px": 217.33,
+        "angle_deg": 3.17
+      },
+      {
+        "id": "L22",
+        "x1": 388.0,
+        "y1": 49.0,
+        "x2": 548.0,
+        "y2": 193.0,
+        "length_px": 215.26,
+        "angle_deg": 41.99
+      },
+      {
+        "id": "L55",
+        "x1": 388.0,
+        "y1": 37.0,
+        "x2": 547.0,
+        "y2": 180.0,
+        "length_px": 213.85,
+        "angle_deg": 41.97
+      },
+      {
+        "id": "L27",
+        "x1": 389.0,
+        "y1": 37.0,
+        "x2": 547.0,
+        "y2": 179.0,
+        "length_px": 212.43,
+        "angle_deg": 41.95
+      },
+      {
+        "id": "L65",
+        "x1": 352.0,
+        "y1": 383.0,
+        "x2": 555.0,
+        "y2": 394.0,
+        "length_px": 203.3,
+        "angle_deg": 3.1
+      },
+      {
+        "id": "L62",
+        "x1": 388.0,
+        "y1": 44.0,
+        "x2": 532.0,
+        "y2": 174.0,
+        "length_px": 194.0,
+        "angle_deg": 42.08
+      },
+      {
+        "id": "L34",
+        "x1": 533.0,
+        "y1": 177.0,
+        "x2": 719.0,
+        "y2": 137.0,
+        "length_px": 190.25,
+        "angle_deg": -12.14
+      },
+      {
+        "id": "L5",
+        "x1": 232.0,
+        "y1": 376.0,
+        "x2": 419.0,
+        "y2": 386.0,
+        "length_px": 187.27,
+        "angle_deg": 3.06
+      },
+      {
+        "id": "L19",
+        "x1": 476.0,
+        "y1": 362.0,
+        "x2": 663.0,
+        "y2": 372.0,
+        "length_px": 187.27,
+        "angle_deg": 3.06
+      },
+      {
+        "id": "L60",
+        "x1": 388.0,
+        "y1": 48.0,
+        "x2": 526.0,
+        "y2": 173.0,
+        "length_px": 186.2,
+        "angle_deg": 42.17
+      },
+      {
+        "id": "L4",
+        "x1": 363.0,
+        "y1": 355.0,
+        "x2": 544.0,
+        "y2": 365.0,
+        "length_px": 181.28,
+        "angle_deg": 3.16
+      },
+      {
+        "id": "L32",
+        "x1": 366.0,
+        "y1": 187.0,
+        "x2": 546.0,
+        "y2": 175.0,
+        "length_px": 180.4,
+        "angle_deg": -3.81
+      },
+      {
+        "id": "L37",
+        "x1": 542.0,
+        "y1": 170.0,
+        "x2": 581.0,
+        "y2": 341.0,
+        "length_px": 175.39,
+        "angle_deg": 77.15
+      },
+      {
+        "id": "L54",
+        "x1": 233.0,
+        "y1": 147.0,
+        "x2": 397.0,
+        "y2": 197.0,
+        "length_px": 171.45,
+        "angle_deg": 16.96
+      },
+      {
+        "id": "L21",
+        "x1": 225.0,
+        "y1": 306.0,
+        "x2": 245.0,
+        "y2": 136.0,
+        "length_px": 171.17,
+        "angle_deg": -83.29
+      },
+      {
+        "id": "L13",
+        "x1": 381.0,
+        "y1": 195.0,
+        "x2": 551.0,
+        "y2": 183.0,
+        "length_px": 170.42,
+        "angle_deg": -4.04
+      },
+      {
+        "id": "L17",
+        "x1": 562.0,
+        "y1": 297.0,
+        "x2": 657.0,
+        "y2": 438.0,
+        "length_px": 170.02,
+        "angle_deg": 56.03
+      },
+      {
+        "id": "L18",
+        "x1": 39.0,
+        "y1": 365.0,
+        "x2": 204.0,
+        "y2": 373.0,
+        "length_px": 165.19,
+        "angle_deg": 2.78
+      },
+      {
+        "id": "L30",
+        "x1": 232.0,
+        "y1": 138.0,
+        "x2": 385.0,
+        "y2": 184.0,
+        "length_px": 159.77,
+        "angle_deg": 16.73
+      },
+      {
+        "id": "L63",
+        "x1": 184.0,
+        "y1": 431.0,
+        "x2": 227.0,
+        "y2": 281.0,
+        "length_px": 156.04,
+        "angle_deg": -74.0
+      },
+      {
+        "id": "L29",
+        "x1": 533.0,
+        "y1": 168.0,
+        "x2": 568.0,
+        "y2": 320.0,
+        "length_px": 155.98,
+        "angle_deg": 77.03
+      },
+      {
+        "id": "L56",
+        "x1": 373.0,
+        "y1": 335.0,
+        "x2": 395.0,
+        "y2": 181.0,
+        "length_px": 155.56,
+        "angle_deg": -81.87
+      },
+      {
+        "id": "L20",
+        "x1": 364.0,
+        "y1": 329.0,
+        "x2": 388.0,
+        "y2": 180.0,
+        "length_px": 150.92,
+        "angle_deg": -80.85
+      },
+      {
+        "id": "L15",
+        "x1": 173.0,
+        "y1": 448.0,
+        "x2": 214.0,
+        "y2": 304.0,
+        "length_px": 149.72,
+        "angle_deg": -74.11
+      },
+      {
+        "id": "L31",
+        "x1": 182.0,
+        "y1": 450.0,
+        "x2": 223.0,
+        "y2": 307.0,
+        "length_px": 148.76,
+        "angle_deg": -74.0
+      },
+      {
+        "id": "L39",
+        "x1": 577.0,
+        "y1": 313.0,
+        "x2": 659.0,
+        "y2": 435.0,
+        "length_px": 147.0,
+        "angle_deg": 56.09
+      },
+      {
+        "id": "L40",
+        "x1": 364.0,
+        "y1": 312.0,
+        "x2": 434.0,
+        "y2": 439.0,
+        "length_px": 145.01,
+        "angle_deg": 61.14
+      },
+      {
+        "id": "L52",
+        "x1": 574.0,
+        "y1": 316.0,
+        "x2": 652.0,
+        "y2": 437.0,
+        "length_px": 143.96,
+        "angle_deg": 57.19
+      },
+      {
+        "id": "L25",
+        "x1": 247.0,
+        "y1": 145.0,
+        "x2": 383.0,
+        "y2": 187.0,
+        "length_px": 142.34,
+        "angle_deg": 17.16
+      },
+      {
+        "id": "L16",
+        "x1": 247.0,
+        "y1": 148.0,
+        "x2": 383.0,
+        "y2": 189.0,
+        "length_px": 142.05,
+        "angle_deg": 16.78
+      },
+      {
+        "id": "L11",
+        "x1": 205.0,
+        "y1": 358.0,
+        "x2": 232.0,
+        "y2": 219.0,
+        "length_px": 141.6,
+        "angle_deg": -79.01
+      },
+      {
+        "id": "L36",
+        "x1": 552.0,
+        "y1": 182.0,
+        "x2": 690.0,
+        "y2": 152.0,
+        "length_px": 141.22,
+        "angle_deg": -12.26
+      },
+      {
+        "id": "L61",
+        "x1": 243.0,
+        "y1": 348.0,
+        "x2": 384.0,
+        "y2": 355.0,
+        "length_px": 141.17,
+        "angle_deg": 2.84
+      },
+      {
+        "id": "L64",
+        "x1": 535.0,
+        "y1": 170.0,
+        "x2": 568.0,
+        "y2": 303.0,
+        "length_px": 137.03,
+        "angle_deg": 76.07
+      },
+      {
+        "id": "L8",
+        "x1": 397.0,
+        "y1": 188.0,
+        "x2": 533.0,
+        "y2": 179.0,
+        "length_px": 136.3,
+        "angle_deg": -3.79
+      },
+      {
+        "id": "L9",
+        "x1": 397.0,
+        "y1": 191.0,
+        "x2": 533.0,
+        "y2": 182.0,
+        "length_px": 136.3,
+        "angle_deg": -3.79
+      },
+      {
+        "id": "L12",
+        "x1": 97.0,
+        "y1": 149.0,
+        "x2": 233.0,
+        "y2": 144.0,
+        "length_px": 136.09,
+        "angle_deg": -2.11
+      },
+      {
+        "id": "L24",
+        "x1": 97.0,
+        "y1": 151.0,
+        "x2": 233.0,
+        "y2": 146.0,
+        "length_px": 136.09,
+        "angle_deg": -2.11
+      },
+      {
+        "id": "L74",
+        "x1": 183.0,
+        "y1": 433.0,
+        "x2": 219.0,
+        "y2": 307.0,
+        "length_px": 131.04,
+        "angle_deg": -74.05
+      },
+      {
+        "id": "L70",
+        "x1": 434.0,
+        "y1": 86.0,
+        "x2": 530.0,
+        "y2": 173.0,
+        "length_px": 129.56,
+        "angle_deg": 42.18
+      },
+      {
+        "id": "L26",
+        "x1": 180.0,
+        "y1": 433.0,
+        "x2": 216.0,
+        "y2": 309.0,
+        "length_px": 129.12,
+        "angle_deg": -73.81
+      },
+      {
+        "id": "L7",
+        "x1": 547.0,
+        "y1": 177.0,
+        "x2": 673.0,
+        "y2": 150.0,
+        "length_px": 128.86,
+        "angle_deg": -12.09
+      },
+      {
+        "id": "L79",
+        "x1": 187.0,
+        "y1": 430.0,
+        "x2": 222.0,
+        "y2": 307.0,
+        "length_px": 127.88,
+        "angle_deg": -74.12
+      },
+      {
+        "id": "L45",
+        "x1": 581.0,
+        "y1": 333.0,
+        "x2": 651.0,
+        "y2": 440.0,
+        "length_px": 127.86,
+        "angle_deg": 56.81
+      },
+      {
+        "id": "L51",
+        "x1": 379.0,
+        "y1": 327.0,
+        "x2": 439.0,
+        "y2": 436.0,
+        "length_px": 124.42,
+        "angle_deg": 61.17
+      },
+      {
+        "id": "L78",
+        "x1": 378.0,
+        "y1": 331.0,
+        "x2": 436.0,
+        "y2": 439.0,
+        "length_px": 122.59,
+        "angle_deg": 61.76
+      },
+      {
+        "id": "L85",
+        "x1": 207.0,
+        "y1": 377.0,
+        "x2": 217.0,
+        "y2": 497.0,
+        "length_px": 120.42,
+        "angle_deg": 85.24
+      },
+      {
+        "id": "L35",
+        "x1": 543.0,
+        "y1": 187.0,
+        "x2": 570.0,
+        "y2": 303.0,
+        "length_px": 119.1,
+        "angle_deg": 76.9
+      },
+      {
+        "id": "L41",
+        "x1": 369.0,
+        "y1": 313.0,
+        "x2": 388.0,
+        "y2": 197.0,
+        "length_px": 117.55,
+        "angle_deg": -80.7
+      },
+      {
+        "id": "L57",
+        "x1": 372.0,
+        "y1": 313.0,
+        "x2": 390.0,
+        "y2": 197.0,
+        "length_px": 117.39,
+        "angle_deg": -81.18
+      },
+      {
+        "id": "L49",
+        "x1": 221.0,
+        "y1": 258.0,
+        "x2": 235.0,
+        "y2": 150.0,
+        "length_px": 108.9,
+        "angle_deg": -82.61
+      },
+      {
+        "id": "L77",
+        "x1": 219.0,
+        "y1": 293.0,
+        "x2": 234.0,
+        "y2": 186.0,
+        "length_px": 108.05,
+        "angle_deg": -82.02
+      },
+      {
+        "id": "L66",
+        "x1": 151.0,
+        "y1": 152.0,
+        "x2": 258.0,
+        "y2": 149.0,
+        "length_px": 107.04,
+        "angle_deg": -1.61
+      },
+      {
+        "id": "L53",
+        "x1": 547.0,
+        "y1": 181.0,
+        "x2": 651.0,
+        "y2": 157.0,
+        "length_px": 106.73,
+        "angle_deg": -12.99
+      },
+      {
+        "id": "L23",
+        "x1": 80.0,
+        "y1": 147.0,
+        "x2": 182.0,
+        "y2": 143.0,
+        "length_px": 102.08,
+        "angle_deg": -2.25
+      },
+      {
+        "id": "L68",
+        "x1": 39.0,
+        "y1": 336.0,
+        "x2": 139.0,
+        "y2": 342.0,
+        "length_px": 100.18,
+        "angle_deg": 3.43
+      },
+      {
+        "id": "L47",
+        "x1": 225.0,
+        "y1": 249.0,
+        "x2": 238.0,
+        "y2": 152.0,
+        "length_px": 97.87,
+        "angle_deg": -82.37
+      },
+      {
+        "id": "L33",
+        "x1": 117.0,
+        "y1": 340.0,
+        "x2": 211.0,
+        "y2": 346.0,
+        "length_px": 94.19,
+        "angle_deg": 3.65
+      },
+      {
+        "id": "L38",
+        "x1": 386.0,
+        "y1": 357.0,
+        "x2": 430.0,
+        "y2": 440.0,
+        "length_px": 93.94,
+        "angle_deg": 62.07
+      },
+      {
+        "id": "L67",
+        "x1": 192.0,
+        "y1": 211.0,
+        "x2": 200.0,
+        "y2": 304.0,
+        "length_px": 93.34,
+        "angle_deg": 85.08
+      },
+      {
+        "id": "L69",
+        "x1": 561.0,
+        "y1": 304.0,
+        "x2": 611.0,
+        "y2": 380.0,
+        "length_px": 90.97,
+        "angle_deg": 56.66
+      },
+      {
+        "id": "L72",
+        "x1": 388.0,
+        "y1": 69.0,
+        "x2": 472.0,
+        "y2": 69.0,
+        "length_px": 84.0,
+        "angle_deg": 0.0
+      },
+      {
+        "id": "L44",
+        "x1": 389.0,
+        "y1": 36.0,
+        "x2": 471.0,
+        "y2": 36.0,
+        "length_px": 82.0,
+        "angle_deg": 0.0
+      },
+      {
+        "id": "L73",
+        "x1": 389.0,
+        "y1": 74.0,
+        "x2": 471.0,
+        "y2": 74.0,
+        "length_px": 82.0,
+        "angle_deg": 0.0
+      },
+      {
+        "id": "L46",
+        "x1": 235.0,
+        "y1": 416.0,
+        "x2": 242.0,
+        "y2": 496.0,
+        "length_px": 80.31,
+        "angle_deg": 85.0
+      },
+      {
+        "id": "L59",
+        "x1": 395.0,
+        "y1": 40.0,
+        "x2": 473.0,
+        "y2": 40.0,
+        "length_px": 78.0,
+        "angle_deg": 0.0
+      },
+      {
+        "id": "L50",
+        "x1": 366.0,
+        "y1": 310.0,
+        "x2": 401.0,
+        "y2": 375.0,
+        "length_px": 73.82,
+        "angle_deg": 61.7
+      },
+      {
+        "id": "L76",
+        "x1": 604.0,
+        "y1": 168.0,
+        "x2": 673.0,
+        "y2": 152.0,
+        "length_px": 70.83,
+        "angle_deg": -13.06
+      },
+      {
+        "id": "L43",
+        "x1": 224.0,
+        "y1": 281.0,
+        "x2": 232.0,
+        "y2": 212.0,
+        "length_px": 69.46,
+        "angle_deg": -83.39
+      },
+      {
+        "id": "L71",
+        "x1": 233.0,
+        "y1": 394.0,
+        "x2": 238.0,
+        "y2": 460.0,
+        "length_px": 66.19,
+        "angle_deg": 85.67
+      },
+      {
+        "id": "L6",
+        "x1": 231.0,
+        "y1": 347.0,
+        "x2": 289.0,
+        "y2": 350.0,
+        "length_px": 58.08,
+        "angle_deg": 2.96
+      },
+      {
+        "id": "L14",
+        "x1": 212.0,
+        "y1": 306.0,
+        "x2": 222.0,
+        "y2": 255.0,
+        "length_px": 51.97,
+        "angle_deg": -78.91
+      },
+      {
+        "id": "L83",
+        "x1": 379.0,
+        "y1": 345.0,
+        "x2": 402.0,
+        "y2": 389.0,
+        "length_px": 49.65,
+        "angle_deg": 62.4
+      },
+      {
+        "id": "L58",
+        "x1": 673.0,
+        "y1": 142.0,
+        "x2": 719.0,
+        "y2": 141.0,
+        "length_px": 46.01,
+        "angle_deg": -1.25
+      },
+      {
+        "id": "L82",
+        "x1": 676.0,
+        "y1": 140.0,
+        "x2": 719.0,
+        "y2": 140.0,
+        "length_px": 43.0,
+        "angle_deg": 0.0
+      },
+      {
+        "id": "L42",
+        "x1": 81.0,
+        "y1": 154.0,
+        "x2": 123.0,
+        "y2": 153.0,
+        "length_px": 42.01,
+        "angle_deg": -1.36
+      },
+      {
+        "id": "L81",
+        "x1": 217.0,
+        "y1": 286.0,
+        "x2": 258.0,
+        "y2": 292.0,
+        "length_px": 41.44,
+        "angle_deg": 8.33
+      },
+      {
+        "id": "L75",
+        "x1": 86.0,
+        "y1": 140.0,
+        "x2": 127.0,
+        "y2": 140.0,
+        "length_px": 41.0,
+        "angle_deg": 0.0
+      },
+      {
+        "id": "L48",
+        "x1": 123.0,
+        "y1": 118.0,
+        "x2": 160.0,
+        "y2": 128.0,
+        "length_px": 38.33,
+        "angle_deg": 15.12
+      },
+      {
+        "id": "L80",
+        "x1": 234.0,
+        "y1": 204.0,
+        "x2": 238.0,
+        "y2": 166.0,
+        "length_px": 38.21,
+        "angle_deg": -83.99
+      },
+      {
+        "id": "L10",
+        "x1": 212.0,
+        "y1": 142.0,
+        "x2": 249.0,
+        "y2": 141.0,
+        "length_px": 37.01,
+        "angle_deg": -1.55
+      },
+      {
+        "id": "L84",
+        "x1": 121.0,
+        "y1": 124.0,
+        "x2": 157.0,
+        "y2": 131.0,
+        "length_px": 36.67,
+        "angle_deg": 11.0
+      },
+      {
+        "id": "L86",
+        "x1": 401.0,
+        "y1": 178.0,
+        "x2": 437.0,
+        "y2": 183.0,
+        "length_px": 36.35,
+        "angle_deg": 7.91
+      }
+    ],
+    "nodes": [
+      {
+        "id": "N1",
+        "x": 178.0,
+        "y": 58.0,
+        "hits": 1
+      },
+      {
+        "id": "N2",
+        "x": 213.0,
+        "y": 453.0,
+        "hits": 1
+      },
+      {
+        "id": "N3",
+        "x": 203.0,
+        "y": 64.0,
+        "hits": 1
+      },
+      {
+        "id": "N4",
+        "x": 234.0,
+        "y": 346.33,
+        "hits": 3
+      },
+      {
+        "id": "N5",
+        "x": 389.0,
+        "y": 41.37,
+        "hits": 8
+      },
+      {
+        "id": "N6",
+        "x": 547.69,
+        "y": 182.3,
+        "hits": 10
+      },
+      {
+        "id": "N7",
+        "x": 505.0,
+        "y": 392.0,
+        "hits": 1
+      },
+      {
+        "id": "N8",
+        "x": 722.0,
+        "y": 404.0,
+        "hits": 1
+      },
+      {
+        "id": "N9",
+        "x": 352.0,
+        "y": 383.0,
+        "hits": 1
+      },
+      {
+        "id": "N10",
+        "x": 555.0,
+        "y": 394.0,
+        "hits": 1
+      },
+      {
+        "id": "N11",
+        "x": 533.0,
+        "y": 174.0,
+        "hits": 9
+      },
+      {
+        "id": "N12",
+        "x": 719.0,
+        "y": 139.33,
+        "hits": 3
+      },
+      {
+        "id": "N13",
+        "x": 232.0,
+        "y": 376.0,
+        "hits": 1
+      },
+      {
+        "id": "N14",
+        "x": 419.0,
+        "y": 386.0,
+        "hits": 1
+      },
+      {
+        "id": "N15",
+        "x": 476.0,
+        "y": 362.0,
+        "hits": 1
+      },
+      {
+        "id": "N16",
+        "x": 663.0,
+        "y": 372.0,
+        "hits": 1
+      },
+      {
+        "id": "N17",
+        "x": 363.0,
+        "y": 355.0,
+        "hits": 1
+      },
+      {
+        "id": "N18",
+        "x": 544.0,
+        "y": 365.0,
+        "hits": 1
+      },
+      {
+        "id": "N19",
+        "x": 366.0,
+        "y": 187.0,
+        "hits": 1
+      },
+      {
+        "id": "N20",
+        "x": 581.0,
+        "y": 337.0,
+        "hits": 2
+      },
+      {
+        "id": "N21",
+        "x": 239.2,
+        "y": 144.7,
+        "hits": 10
+      },
+      {
+        "id": "N22",
+        "x": 390.41,
+        "y": 188.67,
+        "hits": 12
+      },
+      {
+        "id": "N23",
+        "x": 218.75,
+        "y": 304.88,
+        "hits": 8
+      },
+      {
+        "id": "N24",
+        "x": 565.25,
+        "y": 301.75,
+        "hits": 4
+      },
+      {
+        "id": "N25",
+        "x": 654.75,
+        "y": 437.5,
+        "hits": 4
+      },
+      {
+        "id": "N26",
+        "x": 39.0,
+        "y": 365.0,
+        "hits": 1
+      },
+      {
+        "id": "N27",
+        "x": 205.33,
+        "y": 369.33,
+        "hits": 3
+      },
+      {
+        "id": "N28",
+        "x": 183.5,
+        "y": 431.75,
+        "hits": 4
+      },
+      {
+        "id": "N29",
+        "x": 222.67,
+        "y": 282.67,
+        "hits": 3
+      },
+      {
+        "id": "N30",
+        "x": 573.0,
+        "y": 316.33,
+        "hits": 3
+      },
+      {
+        "id": "N31",
+        "x": 373.5,
+        "y": 330.5,
+        "hits": 4
+      },
+      {
+        "id": "N32",
+        "x": 177.5,
+        "y": 449.0,
+        "hits": 2
+      },
+      {
+        "id": "N33",
+        "x": 367.75,
+        "y": 312.0,
+        "hits": 4
+      },
+      {
+        "id": "N34",
+        "x": 434.75,
+        "y": 438.5,
+        "hits": 4
+      },
+      {
+        "id": "N35",
+        "x": 232.67,
+        "y": 211.67,
+        "hits": 3
+      },
+      {
+        "id": "N36",
+        "x": 677.0,
+        "y": 147.2,
+        "hits": 5
+      },
+      {
+        "id": "N37",
+        "x": 383.0,
+        "y": 352.33,
+        "hits": 3
+      },
+      {
+        "id": "N38",
+        "x": 88.2,
+        "y": 148.2,
+        "hits": 5
+      },
+      {
+        "id": "N39",
+        "x": 434.0,
+        "y": 86.0,
+        "hits": 1
+      },
+      {
+        "id": "N40",
+        "x": 217.0,
+        "y": 497.0,
+        "hits": 1
+      },
+      {
+        "id": "N41",
+        "x": 222.67,
+        "y": 254.0,
+        "hits": 3
+      },
+      {
+        "id": "N42",
+        "x": 234.0,
+        "y": 186.0,
+        "hits": 1
+      },
+      {
+        "id": "N43",
+        "x": 151.0,
+        "y": 152.0,
+        "hits": 1
+      },
+      {
+        "id": "N44",
+        "x": 258.0,
+        "y": 149.0,
+        "hits": 1
+      },
+      {
+        "id": "N45",
+        "x": 651.0,
+        "y": 157.0,
+        "hits": 1
+      },
+      {
+        "id": "N46",
+        "x": 182.0,
+        "y": 143.0,
+        "hits": 1
+      },
+      {
+        "id": "N47",
+        "x": 39.0,
+        "y": 336.0,
+        "hits": 1
+      },
+      {
+        "id": "N48",
+        "x": 139.0,
+        "y": 342.0,
+        "hits": 1
+      },
+      {
+        "id": "N49",
+        "x": 117.0,
+        "y": 340.0,
+        "hits": 1
+      },
+      {
+        "id": "N50",
+        "x": 211.0,
+        "y": 346.0,
+        "hits": 1
+      },
+      {
+        "id": "N51",
+        "x": 192.0,
+        "y": 211.0,
+        "hits": 1
+      },
+      {
+        "id": "N52",
+        "x": 200.0,
+        "y": 304.0,
+        "hits": 1
+      },
+      {
+        "id": "N53",
+        "x": 611.0,
+        "y": 380.0,
+        "hits": 1
+      },
+      {
+        "id": "N54",
+        "x": 388.5,
+        "y": 71.5,
+        "hits": 2
+      },
+      {
+        "id": "N55",
+        "x": 471.5,
+        "y": 71.5,
+        "hits": 2
+      },
+      {
+        "id": "N56",
+        "x": 472.0,
+        "y": 38.0,
+        "hits": 2
+      },
+      {
+        "id": "N57",
+        "x": 235.0,
+        "y": 416.0,
+        "hits": 1
+      },
+      {
+        "id": "N58",
+        "x": 242.0,
+        "y": 496.0,
+        "hits": 1
+      },
+      {
+        "id": "N59",
+        "x": 401.5,
+        "y": 382.0,
+        "hits": 2
+      },
+      {
+        "id": "N60",
+        "x": 604.0,
+        "y": 168.0,
+        "hits": 1
+      },
+      {
+        "id": "N61",
+        "x": 233.0,
+        "y": 394.0,
+        "hits": 1
+      },
+      {
+        "id": "N62",
+        "x": 238.0,
+        "y": 460.0,
+        "hits": 1
+      },
+      {
+        "id": "N63",
+        "x": 289.0,
+        "y": 350.0,
+        "hits": 1
+      },
+      {
+        "id": "N64",
+        "x": 125.0,
+        "y": 146.5,
+        "hits": 2
+      },
+      {
+        "id": "N65",
+        "x": 258.0,
+        "y": 292.0,
+        "hits": 1
+      },
+      {
+        "id": "N66",
+        "x": 122.0,
+        "y": 121.0,
+        "hits": 2
+      },
+      {
+        "id": "N67",
+        "x": 158.5,
+        "y": 129.5,
+        "hits": 2
+      },
+      {
+        "id": "N68",
+        "x": 238.0,
+        "y": 166.0,
+        "hits": 1
+      },
+      {
+        "id": "N69",
+        "x": 212.0,
+        "y": 142.0,
+        "hits": 1
+      },
+      {
+        "id": "N70",
+        "x": 437.0,
+        "y": 183.0,
+        "hits": 1
+      }
+    ],
+    "node_candidates": [
+      {
+        "id": "C2",
+        "x": 398.0,
+        "y": 308.5,
+        "width_px": 24.0,
+        "height_px": 11.0,
+        "area_px": 135.0,
+        "circularity": 0.426
+      },
+      {
+        "id": "C6",
+        "x": 708.0,
+        "y": 138.5,
+        "width_px": 24.0,
+        "height_px": 11.0,
+        "area_px": 133.0,
+        "circularity": 0.42
+      },
+      {
+        "id": "C8",
+        "x": 268.0,
+        "y": 133.5,
+        "width_px": 24.0,
+        "height_px": 11.0,
+        "area_px": 132.0,
+        "circularity": 0.359
+      },
+      {
+        "id": "C4",
+        "x": 248.0,
+        "y": 288.5,
+        "width_px": 24.0,
+        "height_px": 11.0,
+        "area_px": 127.5,
+        "circularity": 0.357
+      },
+      {
+        "id": "C9",
+        "x": 126.0,
+        "y": 125.0,
+        "width_px": 10.0,
+        "height_px": 14.0,
+        "area_px": 92.5,
+        "circularity": 0.824
+      },
+      {
+        "id": "C3",
+        "x": 606.0,
+        "y": 298.5,
+        "width_px": 8.0,
+        "height_px": 11.0,
+        "area_px": 60.0,
+        "circularity": 0.877
+      },
+      {
+        "id": "C7",
+        "x": 118.0,
+        "y": 138.0,
+        "width_px": 8.0,
+        "height_px": 10.0,
+        "area_px": 49.5,
+        "circularity": 0.871
+      },
+      {
+        "id": "C1",
+        "x": 441.5,
+        "y": 419.0,
+        "width_px": 7.0,
+        "height_px": 10.0,
+        "area_px": 25.5,
+        "circularity": 0.422
+      },
+      {
+        "id": "C5",
+        "x": 691.5,
+        "y": 139.0,
+        "width_px": 7.0,
+        "height_px": 10.0,
+        "area_px": 25.5,
+        "circularity": 0.422
+      }
+    ],
+    "pipe_candidates": [
+      {
+        "id": "P_IMG_1",
+        "from_node": "N1",
+        "to_node": "N2",
+        "source_line": "L1",
+        "length_px": 396.55,
+        "angle_deg": 84.94
+      },
+      {
+        "id": "P_IMG_2",
+        "from_node": "N3",
+        "to_node": "N4",
+        "source_line": "L2",
+        "length_px": 281.11,
+        "angle_deg": 84.9
+      },
+      {
+        "id": "P_IMG_3",
+        "from_node": "N5",
+        "to_node": "N6",
+        "source_line": "L28",
+        "length_px": 218.08,
+        "angle_deg": 42.03
+      },
+      {
+        "id": "P_IMG_4",
+        "from_node": "N7",
+        "to_node": "N8",
+        "source_line": "L3",
+        "length_px": 217.33,
+        "angle_deg": 3.17
+      },
+      {
+        "id": "P_IMG_5",
+        "from_node": "N5",
+        "to_node": "N6",
+        "source_line": "L22",
+        "length_px": 215.26,
+        "angle_deg": 41.99
+      },
+      {
+        "id": "P_IMG_6",
+        "from_node": "N5",
+        "to_node": "N6",
+        "source_line": "L55",
+        "length_px": 213.85,
+        "angle_deg": 41.97
+      },
+      {
+        "id": "P_IMG_7",
+        "from_node": "N5",
+        "to_node": "N6",
+        "source_line": "L27",
+        "length_px": 212.43,
+        "angle_deg": 41.95
+      },
+      {
+        "id": "P_IMG_8",
+        "from_node": "N9",
+        "to_node": "N10",
+        "source_line": "L65",
+        "length_px": 203.3,
+        "angle_deg": 3.1
+      },
+      {
+        "id": "P_IMG_9",
+        "from_node": "N5",
+        "to_node": "N11",
+        "source_line": "L62",
+        "length_px": 194.0,
+        "angle_deg": 42.08
+      },
+      {
+        "id": "P_IMG_10",
+        "from_node": "N11",
+        "to_node": "N12",
+        "source_line": "L34",
+        "length_px": 190.25,
+        "angle_deg": -12.14
+      },
+      {
+        "id": "P_IMG_11",
+        "from_node": "N13",
+        "to_node": "N14",
+        "source_line": "L5",
+        "length_px": 187.27,
+        "angle_deg": 3.06
+      },
+      {
+        "id": "P_IMG_12",
+        "from_node": "N15",
+        "to_node": "N16",
+        "source_line": "L19",
+        "length_px": 187.27,
+        "angle_deg": 3.06
+      },
+      {
+        "id": "P_IMG_13",
+        "from_node": "N5",
+        "to_node": "N11",
+        "source_line": "L60",
+        "length_px": 186.2,
+        "angle_deg": 42.17
+      },
+      {
+        "id": "P_IMG_14",
+        "from_node": "N17",
+        "to_node": "N18",
+        "source_line": "L4",
+        "length_px": 181.28,
+        "angle_deg": 3.16
+      },
+      {
+        "id": "P_IMG_15",
+        "from_node": "N19",
+        "to_node": "N6",
+        "source_line": "L32",
+        "length_px": 180.4,
+        "angle_deg": -3.81
+      },
+      {
+        "id": "P_IMG_16",
+        "from_node": "N11",
+        "to_node": "N20",
+        "source_line": "L37",
+        "length_px": 175.39,
+        "angle_deg": 77.15
+      },
+      {
+        "id": "P_IMG_17",
+        "from_node": "N21",
+        "to_node": "N22",
+        "source_line": "L54",
+        "length_px": 171.45,
+        "angle_deg": 16.96
+      },
+      {
+        "id": "P_IMG_18",
+        "from_node": "N23",
+        "to_node": "N21",
+        "source_line": "L21",
+        "length_px": 171.17,
+        "angle_deg": -83.29
+      },
+      {
+        "id": "P_IMG_19",
+        "from_node": "N22",
+        "to_node": "N6",
+        "source_line": "L13",
+        "length_px": 170.42,
+        "angle_deg": -4.04
+      },
+      {
+        "id": "P_IMG_20",
+        "from_node": "N24",
+        "to_node": "N25",
+        "source_line": "L17",
+        "length_px": 170.02,
+        "angle_deg": 56.03
+      },
+      {
+        "id": "P_IMG_21",
+        "from_node": "N26",
+        "to_node": "N27",
+        "source_line": "L18",
+        "length_px": 165.19,
+        "angle_deg": 2.78
+      },
+      {
+        "id": "P_IMG_22",
+        "from_node": "N21",
+        "to_node": "N22",
+        "source_line": "L30",
+        "length_px": 159.77,
+        "angle_deg": 16.73
+      },
+      {
+        "id": "P_IMG_23",
+        "from_node": "N28",
+        "to_node": "N29",
+        "source_line": "L63",
+        "length_px": 156.04,
+        "angle_deg": -74.0
+      },
+      {
+        "id": "P_IMG_24",
+        "from_node": "N11",
+        "to_node": "N30",
+        "source_line": "L29",
+        "length_px": 155.98,
+        "angle_deg": 77.03
+      },
+      {
+        "id": "P_IMG_25",
+        "from_node": "N31",
+        "to_node": "N22",
+        "source_line": "L56",
+        "length_px": 155.56,
+        "angle_deg": -81.87
+      },
+      {
+        "id": "P_IMG_26",
+        "from_node": "N31",
+        "to_node": "N22",
+        "source_line": "L20",
+        "length_px": 150.92,
+        "angle_deg": -80.85
+      },
+      {
+        "id": "P_IMG_27",
+        "from_node": "N32",
+        "to_node": "N23",
+        "source_line": "L15",
+        "length_px": 149.72,
+        "angle_deg": -74.11
+      },
+      {
+        "id": "P_IMG_28",
+        "from_node": "N32",
+        "to_node": "N23",
+        "source_line": "L31",
+        "length_px": 148.76,
+        "angle_deg": -74.0
+      },
+      {
+        "id": "P_IMG_29",
+        "from_node": "N30",
+        "to_node": "N25",
+        "source_line": "L39",
+        "length_px": 147.0,
+        "angle_deg": 56.09
+      },
+      {
+        "id": "P_IMG_30",
+        "from_node": "N33",
+        "to_node": "N34",
+        "source_line": "L40",
+        "length_px": 145.01,
+        "angle_deg": 61.14
+      },
+      {
+        "id": "P_IMG_31",
+        "from_node": "N30",
+        "to_node": "N25",
+        "source_line": "L52",
+        "length_px": 143.96,
+        "angle_deg": 57.19
+      },
+      {
+        "id": "P_IMG_32",
+        "from_node": "N21",
+        "to_node": "N22",
+        "source_line": "L25",
+        "length_px": 142.34,
+        "angle_deg": 17.16
+      },
+      {
+        "id": "P_IMG_33",
+        "from_node": "N21",
+        "to_node": "N22",
+        "source_line": "L16",
+        "length_px": 142.05,
+        "angle_deg": 16.78
+      },
+      {
+        "id": "P_IMG_34",
+        "from_node": "N27",
+        "to_node": "N35",
+        "source_line": "L11",
+        "length_px": 141.6,
+        "angle_deg": -79.01
+      },
+      {
+        "id": "P_IMG_35",
+        "from_node": "N6",
+        "to_node": "N36",
+        "source_line": "L36",
+        "length_px": 141.22,
+        "angle_deg": -12.26
+      },
+      {
+        "id": "P_IMG_36",
+        "from_node": "N4",
+        "to_node": "N37",
+        "source_line": "L61",
+        "length_px": 141.17,
+        "angle_deg": 2.84
+      },
+      {
+        "id": "P_IMG_37",
+        "from_node": "N11",
+        "to_node": "N24",
+        "source_line": "L64",
+        "length_px": 137.03,
+        "angle_deg": 76.07
+      },
+      {
+        "id": "P_IMG_38",
+        "from_node": "N22",
+        "to_node": "N11",
+        "source_line": "L8",
+        "length_px": 136.3,
+        "angle_deg": -3.79
+      },
+      {
+        "id": "P_IMG_39",
+        "from_node": "N22",
+        "to_node": "N11",
+        "source_line": "L9",
+        "length_px": 136.3,
+        "angle_deg": -3.79
+      },
+      {
+        "id": "P_IMG_40",
+        "from_node": "N38",
+        "to_node": "N21",
+        "source_line": "L12",
+        "length_px": 136.09,
+        "angle_deg": -2.11
+      },
+      {
+        "id": "P_IMG_41",
+        "from_node": "N38",
+        "to_node": "N21",
+        "source_line": "L24",
+        "length_px": 136.09,
+        "angle_deg": -2.11
+      },
+      {
+        "id": "P_IMG_42",
+        "from_node": "N28",
+        "to_node": "N23",
+        "source_line": "L74",
+        "length_px": 131.04,
+        "angle_deg": -74.05
+      },
+      {
+        "id": "P_IMG_43",
+        "from_node": "N39",
+        "to_node": "N11",
+        "source_line": "L70",
+        "length_px": 129.56,
+        "angle_deg": 42.18
+      },
+      {
+        "id": "P_IMG_44",
+        "from_node": "N28",
+        "to_node": "N23",
+        "source_line": "L26",
+        "length_px": 129.12,
+        "angle_deg": -73.81
+      },
+      {
+        "id": "P_IMG_45",
+        "from_node": "N6",
+        "to_node": "N36",
+        "source_line": "L7",
+        "length_px": 128.86,
+        "angle_deg": -12.09
+      },
+      {
+        "id": "P_IMG_46",
+        "from_node": "N28",
+        "to_node": "N23",
+        "source_line": "L79",
+        "length_px": 127.88,
+        "angle_deg": -74.12
+      },
+      {
+        "id": "P_IMG_47",
+        "from_node": "N20",
+        "to_node": "N25",
+        "source_line": "L45",
+        "length_px": 127.86,
+        "angle_deg": 56.81
+      },
+      {
+        "id": "P_IMG_48",
+        "from_node": "N31",
+        "to_node": "N34",
+        "source_line": "L51",
+        "length_px": 124.42,
+        "angle_deg": 61.17
+      },
+      {
+        "id": "P_IMG_49",
+        "from_node": "N31",
+        "to_node": "N34",
+        "source_line": "L78",
+        "length_px": 122.59,
+        "angle_deg": 61.76
+      },
+      {
+        "id": "P_IMG_50",
+        "from_node": "N27",
+        "to_node": "N40",
+        "source_line": "L85",
+        "length_px": 120.42,
+        "angle_deg": 85.24
+      },
+      {
+        "id": "P_IMG_51",
+        "from_node": "N6",
+        "to_node": "N24",
+        "source_line": "L35",
+        "length_px": 119.1,
+        "angle_deg": 76.9
+      },
+      {
+        "id": "P_IMG_52",
+        "from_node": "N33",
+        "to_node": "N22",
+        "source_line": "L41",
+        "length_px": 117.55,
+        "angle_deg": -80.7
+      },
+      {
+        "id": "P_IMG_53",
+        "from_node": "N33",
+        "to_node": "N22",
+        "source_line": "L57",
+        "length_px": 117.39,
+        "angle_deg": -81.18
+      },
+      {
+        "id": "P_IMG_54",
+        "from_node": "N41",
+        "to_node": "N21",
+        "source_line": "L49",
+        "length_px": 108.9,
+        "angle_deg": -82.61
+      },
+      {
+        "id": "P_IMG_55",
+        "from_node": "N29",
+        "to_node": "N42",
+        "source_line": "L77",
+        "length_px": 108.05,
+        "angle_deg": -82.02
+      },
+      {
+        "id": "P_IMG_56",
+        "from_node": "N43",
+        "to_node": "N44",
+        "source_line": "L66",
+        "length_px": 107.04,
+        "angle_deg": -1.61
+      },
+      {
+        "id": "P_IMG_57",
+        "from_node": "N6",
+        "to_node": "N45",
+        "source_line": "L53",
+        "length_px": 106.73,
+        "angle_deg": -12.99
+      },
+      {
+        "id": "P_IMG_58",
+        "from_node": "N38",
+        "to_node": "N46",
+        "source_line": "L23",
+        "length_px": 102.08,
+        "angle_deg": -2.25
+      },
+      {
+        "id": "P_IMG_59",
+        "from_node": "N47",
+        "to_node": "N48",
+        "source_line": "L68",
+        "length_px": 100.18,
+        "angle_deg": 3.43
+      },
+      {
+        "id": "P_IMG_60",
+        "from_node": "N41",
+        "to_node": "N21",
+        "source_line": "L47",
+        "length_px": 97.87,
+        "angle_deg": -82.37
+      },
+      {
+        "id": "P_IMG_61",
+        "from_node": "N49",
+        "to_node": "N50",
+        "source_line": "L33",
+        "length_px": 94.19,
+        "angle_deg": 3.65
+      },
+      {
+        "id": "P_IMG_62",
+        "from_node": "N37",
+        "to_node": "N34",
+        "source_line": "L38",
+        "length_px": 93.94,
+        "angle_deg": 62.07
+      },
+      {
+        "id": "P_IMG_63",
+        "from_node": "N51",
+        "to_node": "N52",
+        "source_line": "L67",
+        "length_px": 93.34,
+        "angle_deg": 85.08
+      },
+      {
+        "id": "P_IMG_64",
+        "from_node": "N24",
+        "to_node": "N53",
+        "source_line": "L69",
+        "length_px": 90.97,
+        "angle_deg": 56.66
+      },
+      {
+        "id": "P_IMG_65",
+        "from_node": "N54",
+        "to_node": "N55",
+        "source_line": "L72",
+        "length_px": 84.0,
+        "angle_deg": 0.0
+      },
+      {
+        "id": "P_IMG_66",
+        "from_node": "N5",
+        "to_node": "N56",
+        "source_line": "L44",
+        "length_px": 82.0,
+        "angle_deg": 0.0
+      },
+      {
+        "id": "P_IMG_67",
+        "from_node": "N54",
+        "to_node": "N55",
+        "source_line": "L73",
+        "length_px": 82.0,
+        "angle_deg": 0.0
+      },
+      {
+        "id": "P_IMG_68",
+        "from_node": "N57",
+        "to_node": "N58",
+        "source_line": "L46",
+        "length_px": 80.31,
+        "angle_deg": 85.0
+      },
+      {
+        "id": "P_IMG_69",
+        "from_node": "N5",
+        "to_node": "N56",
+        "source_line": "L59",
+        "length_px": 78.0,
+        "angle_deg": 0.0
+      },
+      {
+        "id": "P_IMG_70",
+        "from_node": "N33",
+        "to_node": "N59",
+        "source_line": "L50",
+        "length_px": 73.82,
+        "angle_deg": 61.7
+      },
+      {
+        "id": "P_IMG_71",
+        "from_node": "N60",
+        "to_node": "N36",
+        "source_line": "L76",
+        "length_px": 70.83,
+        "angle_deg": -13.06
+      },
+      {
+        "id": "P_IMG_72",
+        "from_node": "N29",
+        "to_node": "N35",
+        "source_line": "L43",
+        "length_px": 69.46,
+        "angle_deg": -83.39
+      },
+      {
+        "id": "P_IMG_73",
+        "from_node": "N61",
+        "to_node": "N62",
+        "source_line": "L71",
+        "length_px": 66.19,
+        "angle_deg": 85.67
+      },
+      {
+        "id": "P_IMG_74",
+        "from_node": "N4",
+        "to_node": "N63",
+        "source_line": "L6",
+        "length_px": 58.08,
+        "angle_deg": 2.96
+      },
+      {
+        "id": "P_IMG_75",
+        "from_node": "N23",
+        "to_node": "N41",
+        "source_line": "L14",
+        "length_px": 51.97,
+        "angle_deg": -78.91
+      },
+      {
+        "id": "P_IMG_76",
+        "from_node": "N37",
+        "to_node": "N59",
+        "source_line": "L83",
+        "length_px": 49.65,
+        "angle_deg": 62.4
+      },
+      {
+        "id": "P_IMG_77",
+        "from_node": "N36",
+        "to_node": "N12",
+        "source_line": "L58",
+        "length_px": 46.01,
+        "angle_deg": -1.25
+      },
+      {
+        "id": "P_IMG_78",
+        "from_node": "N36",
+        "to_node": "N12",
+        "source_line": "L82",
+        "length_px": 43.0,
+        "angle_deg": 0.0
+      },
+      {
+        "id": "P_IMG_79",
+        "from_node": "N38",
+        "to_node": "N64",
+        "source_line": "L42",
+        "length_px": 42.01,
+        "angle_deg": -1.36
+      },
+      {
+        "id": "P_IMG_80",
+        "from_node": "N29",
+        "to_node": "N65",
+        "source_line": "L81",
+        "length_px": 41.44,
+        "angle_deg": 8.33
+      },
+      {
+        "id": "P_IMG_81",
+        "from_node": "N38",
+        "to_node": "N64",
+        "source_line": "L75",
+        "length_px": 41.0,
+        "angle_deg": 0.0
+      },
+      {
+        "id": "P_IMG_82",
+        "from_node": "N66",
+        "to_node": "N67",
+        "source_line": "L48",
+        "length_px": 38.33,
+        "angle_deg": 15.12
+      },
+      {
+        "id": "P_IMG_83",
+        "from_node": "N35",
+        "to_node": "N68",
+        "source_line": "L80",
+        "length_px": 38.21,
+        "angle_deg": -83.99
+      },
+      {
+        "id": "P_IMG_84",
+        "from_node": "N69",
+        "to_node": "N21",
+        "source_line": "L10",
+        "length_px": 37.01,
+        "angle_deg": -1.55
+      },
+      {
+        "id": "P_IMG_85",
+        "from_node": "N66",
+        "to_node": "N67",
+        "source_line": "L84",
+        "length_px": 36.67,
+        "angle_deg": 11.0
+      },
+      {
+        "id": "P_IMG_86",
+        "from_node": "N22",
+        "to_node": "N70",
+        "source_line": "L86",
+        "length_px": 36.35,
+        "angle_deg": 7.91
+      }
+    ],
+    "summary": {
+      "width": 760,
+      "height": 520,
+      "line_segments": 86,
+      "node_candidates": 9,
+      "pipe_candidates": 86,
+      "binary_payload_bytes": 49367
+    },
+    "gemini": null
+  },
+  "assets": {
+    "nodes": [
+      {
+        "node_id": "R_IMG_1",
+        "x": -41.0,
+        "y": 155.0,
+        "elevation_m": 35.0,
+        "base_demand_lps": 0.0,
+        "node_type": "reservoir",
+        "dma_id": "SOURCE"
+      },
+      {
+        "node_id": "J_IMG_1",
+        "x": 178.0,
+        "y": 462.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_2",
+        "x": 213.0,
+        "y": 67.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_3",
+        "x": 203.0,
+        "y": 456.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_4",
+        "x": 234.0,
+        "y": 173.67,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_5",
+        "x": 389.0,
+        "y": 478.63,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_6",
+        "x": 547.69,
+        "y": 337.7,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_7",
+        "x": 505.0,
+        "y": 128.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_8",
+        "x": 722.0,
+        "y": 116.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_9",
+        "x": 352.0,
+        "y": 137.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_10",
+        "x": 555.0,
+        "y": 126.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_11",
+        "x": 533.0,
+        "y": 346.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_12",
+        "x": 719.0,
+        "y": 380.67,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_13",
+        "x": 232.0,
+        "y": 144.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_14",
+        "x": 419.0,
+        "y": 134.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_15",
+        "x": 476.0,
+        "y": 158.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_16",
+        "x": 663.0,
+        "y": 148.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_17",
+        "x": 363.0,
+        "y": 165.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_18",
+        "x": 544.0,
+        "y": 155.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_19",
+        "x": 366.0,
+        "y": 333.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_20",
+        "x": 581.0,
+        "y": 183.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_21",
+        "x": 239.2,
+        "y": 375.3,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_22",
+        "x": 390.41,
+        "y": 331.33,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_23",
+        "x": 218.75,
+        "y": 215.12,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_24",
+        "x": 565.25,
+        "y": 218.25,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_25",
+        "x": 654.75,
+        "y": 82.5,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_26",
+        "x": 39.0,
+        "y": 155.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_27",
+        "x": 205.33,
+        "y": 150.67,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_28",
+        "x": 183.5,
+        "y": 88.25,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_29",
+        "x": 222.67,
+        "y": 237.33,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_30",
+        "x": 573.0,
+        "y": 203.67,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_31",
+        "x": 373.5,
+        "y": 189.5,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_32",
+        "x": 177.5,
+        "y": 71.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_33",
+        "x": 367.75,
+        "y": 208.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_34",
+        "x": 434.75,
+        "y": 81.5,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_35",
+        "x": 232.67,
+        "y": 308.33,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_36",
+        "x": 677.0,
+        "y": 372.8,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_37",
+        "x": 383.0,
+        "y": 167.67,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_38",
+        "x": 88.2,
+        "y": 371.8,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_39",
+        "x": 434.0,
+        "y": 434.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_40",
+        "x": 217.0,
+        "y": 23.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_41",
+        "x": 222.67,
+        "y": 266.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_42",
+        "x": 234.0,
+        "y": 334.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_43",
+        "x": 151.0,
+        "y": 368.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_44",
+        "x": 258.0,
+        "y": 371.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_45",
+        "x": 651.0,
+        "y": 363.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_46",
+        "x": 182.0,
+        "y": 377.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_47",
+        "x": 39.0,
+        "y": 184.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_48",
+        "x": 139.0,
+        "y": 178.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_49",
+        "x": 117.0,
+        "y": 180.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_50",
+        "x": 211.0,
+        "y": 174.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_51",
+        "x": 192.0,
+        "y": 309.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_52",
+        "x": 200.0,
+        "y": 216.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_53",
+        "x": 611.0,
+        "y": 140.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_54",
+        "x": 388.5,
+        "y": 448.5,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_55",
+        "x": 471.5,
+        "y": 448.5,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_56",
+        "x": 472.0,
+        "y": 482.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_57",
+        "x": 235.0,
+        "y": 104.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_58",
+        "x": 242.0,
+        "y": 24.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_59",
+        "x": 401.5,
+        "y": 138.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_60",
+        "x": 604.0,
+        "y": 352.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_61",
+        "x": 233.0,
+        "y": 126.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_62",
+        "x": 238.0,
+        "y": 60.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_63",
+        "x": 289.0,
+        "y": 170.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_64",
+        "x": 125.0,
+        "y": 373.5,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_65",
+        "x": 258.0,
+        "y": 228.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_66",
+        "x": 122.0,
+        "y": 399.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_67",
+        "x": 158.5,
+        "y": 390.5,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_68",
+        "x": 238.0,
+        "y": 354.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_69",
+        "x": 212.0,
+        "y": 378.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      },
+      {
+        "node_id": "J_IMG_70",
+        "x": 437.0,
+        "y": 337.0,
+        "elevation_m": 30.0,
+        "base_demand_lps": 0.8,
+        "node_type": "junction",
+        "dma_id": "IMG_IMPORT"
+      }
+    ],
+    "pipes": [
+      {
+        "pipe_id": "P_IMG_SOURCE",
+        "from_node": "R_IMG_1",
+        "to_node": "J_IMG_26",
+        "length_m": 80.0,
+        "diameter_mm": 250.0,
+        "material": "ductile_iron",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.2,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_1",
+        "from_node": "J_IMG_1",
+        "to_node": "J_IMG_2",
+        "length_m": 396.55,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_2",
+        "from_node": "J_IMG_3",
+        "to_node": "J_IMG_4",
+        "length_m": 281.11,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_3",
+        "from_node": "J_IMG_5",
+        "to_node": "J_IMG_6",
+        "length_m": 218.08,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_4",
+        "from_node": "J_IMG_7",
+        "to_node": "J_IMG_8",
+        "length_m": 217.33,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_5",
+        "from_node": "J_IMG_5",
+        "to_node": "J_IMG_6",
+        "length_m": 215.26,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_6",
+        "from_node": "J_IMG_5",
+        "to_node": "J_IMG_6",
+        "length_m": 213.85,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_7",
+        "from_node": "J_IMG_5",
+        "to_node": "J_IMG_6",
+        "length_m": 212.43,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_8",
+        "from_node": "J_IMG_9",
+        "to_node": "J_IMG_10",
+        "length_m": 203.3,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_9",
+        "from_node": "J_IMG_5",
+        "to_node": "J_IMG_11",
+        "length_m": 194.0,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_10",
+        "from_node": "J_IMG_11",
+        "to_node": "J_IMG_12",
+        "length_m": 190.25,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_11",
+        "from_node": "J_IMG_13",
+        "to_node": "J_IMG_14",
+        "length_m": 187.27,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_12",
+        "from_node": "J_IMG_15",
+        "to_node": "J_IMG_16",
+        "length_m": 187.27,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_13",
+        "from_node": "J_IMG_5",
+        "to_node": "J_IMG_11",
+        "length_m": 186.2,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_14",
+        "from_node": "J_IMG_17",
+        "to_node": "J_IMG_18",
+        "length_m": 181.28,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_15",
+        "from_node": "J_IMG_19",
+        "to_node": "J_IMG_6",
+        "length_m": 180.4,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_16",
+        "from_node": "J_IMG_11",
+        "to_node": "J_IMG_20",
+        "length_m": 175.39,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_17",
+        "from_node": "J_IMG_21",
+        "to_node": "J_IMG_22",
+        "length_m": 171.45,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_18",
+        "from_node": "J_IMG_23",
+        "to_node": "J_IMG_21",
+        "length_m": 171.17,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_19",
+        "from_node": "J_IMG_22",
+        "to_node": "J_IMG_6",
+        "length_m": 170.42,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_20",
+        "from_node": "J_IMG_24",
+        "to_node": "J_IMG_25",
+        "length_m": 170.02,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_21",
+        "from_node": "J_IMG_26",
+        "to_node": "J_IMG_27",
+        "length_m": 165.19,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_22",
+        "from_node": "J_IMG_21",
+        "to_node": "J_IMG_22",
+        "length_m": 159.77,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_23",
+        "from_node": "J_IMG_28",
+        "to_node": "J_IMG_29",
+        "length_m": 156.04,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_24",
+        "from_node": "J_IMG_11",
+        "to_node": "J_IMG_30",
+        "length_m": 155.98,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_25",
+        "from_node": "J_IMG_31",
+        "to_node": "J_IMG_22",
+        "length_m": 155.56,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_26",
+        "from_node": "J_IMG_31",
+        "to_node": "J_IMG_22",
+        "length_m": 150.92,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_27",
+        "from_node": "J_IMG_32",
+        "to_node": "J_IMG_23",
+        "length_m": 149.72,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_28",
+        "from_node": "J_IMG_32",
+        "to_node": "J_IMG_23",
+        "length_m": 148.76,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_29",
+        "from_node": "J_IMG_30",
+        "to_node": "J_IMG_25",
+        "length_m": 147.0,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_30",
+        "from_node": "J_IMG_33",
+        "to_node": "J_IMG_34",
+        "length_m": 145.01,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_31",
+        "from_node": "J_IMG_30",
+        "to_node": "J_IMG_25",
+        "length_m": 143.96,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_32",
+        "from_node": "J_IMG_21",
+        "to_node": "J_IMG_22",
+        "length_m": 142.34,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_33",
+        "from_node": "J_IMG_21",
+        "to_node": "J_IMG_22",
+        "length_m": 142.05,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_34",
+        "from_node": "J_IMG_27",
+        "to_node": "J_IMG_35",
+        "length_m": 141.6,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_35",
+        "from_node": "J_IMG_6",
+        "to_node": "J_IMG_36",
+        "length_m": 141.22,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_36",
+        "from_node": "J_IMG_4",
+        "to_node": "J_IMG_37",
+        "length_m": 141.17,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_37",
+        "from_node": "J_IMG_11",
+        "to_node": "J_IMG_24",
+        "length_m": 137.03,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_38",
+        "from_node": "J_IMG_22",
+        "to_node": "J_IMG_11",
+        "length_m": 136.3,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_39",
+        "from_node": "J_IMG_22",
+        "to_node": "J_IMG_11",
+        "length_m": 136.3,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_40",
+        "from_node": "J_IMG_38",
+        "to_node": "J_IMG_21",
+        "length_m": 136.09,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_41",
+        "from_node": "J_IMG_38",
+        "to_node": "J_IMG_21",
+        "length_m": 136.09,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_42",
+        "from_node": "J_IMG_28",
+        "to_node": "J_IMG_23",
+        "length_m": 131.04,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_43",
+        "from_node": "J_IMG_39",
+        "to_node": "J_IMG_11",
+        "length_m": 129.56,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_44",
+        "from_node": "J_IMG_28",
+        "to_node": "J_IMG_23",
+        "length_m": 129.12,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_45",
+        "from_node": "J_IMG_6",
+        "to_node": "J_IMG_36",
+        "length_m": 128.86,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_46",
+        "from_node": "J_IMG_28",
+        "to_node": "J_IMG_23",
+        "length_m": 127.88,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_47",
+        "from_node": "J_IMG_20",
+        "to_node": "J_IMG_25",
+        "length_m": 127.86,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_48",
+        "from_node": "J_IMG_31",
+        "to_node": "J_IMG_34",
+        "length_m": 124.42,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_49",
+        "from_node": "J_IMG_31",
+        "to_node": "J_IMG_34",
+        "length_m": 122.59,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_50",
+        "from_node": "J_IMG_27",
+        "to_node": "J_IMG_40",
+        "length_m": 120.42,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_51",
+        "from_node": "J_IMG_6",
+        "to_node": "J_IMG_24",
+        "length_m": 119.1,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_52",
+        "from_node": "J_IMG_33",
+        "to_node": "J_IMG_22",
+        "length_m": 117.55,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_53",
+        "from_node": "J_IMG_33",
+        "to_node": "J_IMG_22",
+        "length_m": 117.39,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_54",
+        "from_node": "J_IMG_41",
+        "to_node": "J_IMG_21",
+        "length_m": 108.9,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_55",
+        "from_node": "J_IMG_29",
+        "to_node": "J_IMG_42",
+        "length_m": 108.05,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_56",
+        "from_node": "J_IMG_43",
+        "to_node": "J_IMG_44",
+        "length_m": 107.04,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_57",
+        "from_node": "J_IMG_6",
+        "to_node": "J_IMG_45",
+        "length_m": 106.73,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_58",
+        "from_node": "J_IMG_38",
+        "to_node": "J_IMG_46",
+        "length_m": 102.08,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_59",
+        "from_node": "J_IMG_47",
+        "to_node": "J_IMG_48",
+        "length_m": 100.18,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_60",
+        "from_node": "J_IMG_41",
+        "to_node": "J_IMG_21",
+        "length_m": 97.87,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_61",
+        "from_node": "J_IMG_49",
+        "to_node": "J_IMG_50",
+        "length_m": 94.19,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_62",
+        "from_node": "J_IMG_37",
+        "to_node": "J_IMG_34",
+        "length_m": 93.94,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_63",
+        "from_node": "J_IMG_51",
+        "to_node": "J_IMG_52",
+        "length_m": 93.34,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_64",
+        "from_node": "J_IMG_24",
+        "to_node": "J_IMG_53",
+        "length_m": 90.97,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_65",
+        "from_node": "J_IMG_54",
+        "to_node": "J_IMG_55",
+        "length_m": 84.0,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_66",
+        "from_node": "J_IMG_5",
+        "to_node": "J_IMG_56",
+        "length_m": 82.0,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_67",
+        "from_node": "J_IMG_54",
+        "to_node": "J_IMG_55",
+        "length_m": 82.0,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_68",
+        "from_node": "J_IMG_57",
+        "to_node": "J_IMG_58",
+        "length_m": 80.31,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_69",
+        "from_node": "J_IMG_5",
+        "to_node": "J_IMG_56",
+        "length_m": 78.0,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_70",
+        "from_node": "J_IMG_33",
+        "to_node": "J_IMG_59",
+        "length_m": 73.82,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_71",
+        "from_node": "J_IMG_60",
+        "to_node": "J_IMG_36",
+        "length_m": 70.83,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_72",
+        "from_node": "J_IMG_29",
+        "to_node": "J_IMG_35",
+        "length_m": 69.46,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_73",
+        "from_node": "J_IMG_61",
+        "to_node": "J_IMG_62",
+        "length_m": 66.19,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_74",
+        "from_node": "J_IMG_4",
+        "to_node": "J_IMG_63",
+        "length_m": 58.08,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_75",
+        "from_node": "J_IMG_23",
+        "to_node": "J_IMG_41",
+        "length_m": 51.97,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_76",
+        "from_node": "J_IMG_37",
+        "to_node": "J_IMG_59",
+        "length_m": 49.65,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_77",
+        "from_node": "J_IMG_36",
+        "to_node": "J_IMG_12",
+        "length_m": 46.01,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_78",
+        "from_node": "J_IMG_36",
+        "to_node": "J_IMG_12",
+        "length_m": 43.0,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_79",
+        "from_node": "J_IMG_38",
+        "to_node": "J_IMG_64",
+        "length_m": 42.01,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_80",
+        "from_node": "J_IMG_29",
+        "to_node": "J_IMG_65",
+        "length_m": 41.44,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_81",
+        "from_node": "J_IMG_38",
+        "to_node": "J_IMG_64",
+        "length_m": 41.0,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_82",
+        "from_node": "J_IMG_66",
+        "to_node": "J_IMG_67",
+        "length_m": 38.33,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_83",
+        "from_node": "J_IMG_35",
+        "to_node": "J_IMG_68",
+        "length_m": 38.21,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_84",
+        "from_node": "J_IMG_69",
+        "to_node": "J_IMG_21",
+        "length_m": 37.01,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_85",
+        "from_node": "J_IMG_66",
+        "to_node": "J_IMG_67",
+        "length_m": 36.67,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      },
+      {
+        "pipe_id": "P_IMG_86",
+        "from_node": "J_IMG_22",
+        "to_node": "J_IMG_70",
+        "length_m": 36.35,
+        "diameter_mm": 150.0,
+        "material": "PVC",
+        "install_year": 2026,
+        "bend_count": 0,
+        "valve_count": 0,
+        "repair_count": 0,
+        "leak_history_count": 0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 3000.0,
+        "traffic_load_index": 0.3,
+        "burst_history_count": 0
+      }
+    ],
+    "reservoirs": [
+      {
+        "node_id": "R_IMG_1",
+        "head_m": 58.0
+      }
+    ],
+    "warnings": [
+      "A virtual reservoir and source pipe were added for dashboard preview."
+    ]
+  }
+}
