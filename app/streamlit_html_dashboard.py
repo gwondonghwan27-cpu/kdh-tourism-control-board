@@ -5,7 +5,11 @@ from __future__ import annotations
 import html
 import json
 import re
+import socket
+import subprocess
 import sys
+import time
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -62,8 +66,9 @@ def main() -> None:
     )
 
     recognized_assets = render_streamlit_recognition_controls(st)
+    recognition_api_base = ensure_local_recognition_api(st)
     components.html(
-        build_dashboard_html(recognized_assets=recognized_assets),
+        build_dashboard_html(recognized_assets=recognized_assets, recognition_api_base=recognition_api_base),
         height=2600,
         scrolling=False,
     )
@@ -132,6 +137,56 @@ def render_streamlit_recognition_controls(st: Any) -> dict[str, Any] | None:
     return st.session_state.get("streamlit_recognized_assets")
 
 
+def ensure_local_recognition_api(st: Any) -> str | None:
+    """Start the local dashboard API so the embedded canvas can recognize drawings."""
+
+    for port in range(5173, 5180):
+        api_base = f"http://127.0.0.1:{port}"
+        if is_recognition_api_ready(api_base):
+            st.sidebar.caption(f"Canvas recognition API: {api_base}")
+            return api_base
+        if not is_port_available("127.0.0.1", port):
+            continue
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                str(REPO_ROOT / "scripts" / "dashboard_server.py"),
+                "--host",
+                "127.0.0.1",
+                "--port",
+                str(port),
+            ],
+            cwd=str(REPO_ROOT),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        st.session_state.streamlit_recognition_api_process = process.pid
+        for _ in range(20):
+            if is_recognition_api_ready(api_base):
+                st.sidebar.caption(f"Canvas recognition API: {api_base}")
+                return api_base
+            if process.poll() is not None:
+                break
+            time.sleep(0.1)
+    st.sidebar.warning("Canvas recognition API could not start. Use the sidebar Analyze button instead.")
+    return None
+
+
+def is_port_available(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(0.2)
+        return sock.connect_ex((host, port)) != 0
+
+
+def is_recognition_api_ready(api_base: str) -> bool:
+    try:
+        with urllib.request.urlopen(f"{api_base}/api/health", timeout=0.5) as response:
+            return response.status == 200
+    except OSError:
+        return False
+
+
 def mime_type_from_filename(filename: str) -> str:
     suffix = Path(filename).suffix.lower()
     return {
@@ -144,7 +199,10 @@ def mime_type_from_filename(filename: str) -> str:
     }.get(suffix, "application/octet-stream")
 
 
-def build_dashboard_html(recognized_assets: dict[str, Any] | None = None) -> str:
+def build_dashboard_html(
+    recognized_assets: dict[str, Any] | None = None,
+    recognition_api_base: str | None = None,
+) -> str:
     index_html = read_text(FRONTEND_DIR / "index.html")
     css = read_text(FRONTEND_DIR / "styles.css")
     app_js = read_text(FRONTEND_DIR / "app.js")
@@ -174,11 +232,16 @@ def build_dashboard_html(recognized_assets: dict[str, Any] | None = None) -> str
     <script>
       window.__STREAMLIT_RECOGNIZED_ASSETS__ = {json.dumps(recognized_assets, ensure_ascii=False)};
       window.__STREAMLIT_MOCK_CSV__ = {json.dumps(csv_payload, ensure_ascii=False)};
+      window.__DRAWING_RECOGNITION_API_BASE__ = {json.dumps(recognition_api_base or "", ensure_ascii=False)};
       const __streamlitOriginalFetch = window.fetch ? window.fetch.bind(window) : null;
       window.fetch = async function(resource, options) {{
         const url = typeof resource === "string" ? resource : resource?.url || "";
         const route = decodeURIComponent(String(url).split("?")[0]);
         const fileName = route.split("/").pop();
+        if (route.endsWith("/api/recognize-drawing") && window.__DRAWING_RECOGNITION_API_BASE__) {{
+          const apiBase = String(window.__DRAWING_RECOGNITION_API_BASE__).replace(/\\/$/, "");
+          if (__streamlitOriginalFetch) return __streamlitOriginalFetch(`${{apiBase}}/api/recognize-drawing`, options);
+        }}
         if (Object.prototype.hasOwnProperty.call(window.__STREAMLIT_MOCK_CSV__, fileName)) {{
           return new Response(window.__STREAMLIT_MOCK_CSV__[fileName], {{
             status: 200,

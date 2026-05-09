@@ -29,6 +29,13 @@ from aging_water_network.vision import (  # noqa: E402
 class DashboardRequestHandler(BaseHTTPRequestHandler):
     server_version = "WaterNetworkDashboard/0.1"
 
+    def do_OPTIONS(self) -> None:  # noqa: N802 - stdlib hook
+        self.send_response(HTTPStatus.NO_CONTENT)
+        self._send_cors_headers()
+        self.send_header("access-control-allow-methods", "GET,HEAD,POST,OPTIONS")
+        self.send_header("access-control-allow-headers", "content-type")
+        self.end_headers()
+
     def do_HEAD(self) -> None:  # noqa: N802 - stdlib hook
         route = unquote(urlparse(self.path).path)
         if route == "/api/health":
@@ -80,6 +87,7 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             content_type = f"{content_type};charset=utf-8"
         body = file_path.read_bytes()
         self.send_response(HTTPStatus.OK)
+        self._send_cors_headers()
         self.send_header("content-type", content_type)
         self.send_header("content-length", str(len(body)))
         self.end_headers()
@@ -95,11 +103,16 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
     ) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
+        self._send_cors_headers()
         self.send_header("content-type", "application/json;charset=utf-8")
         self.send_header("content-length", str(len(body)))
         self.end_headers()
         if include_body:
             self.wfile.write(body)
+
+    def _send_cors_headers(self) -> None:
+        self.send_header("access-control-allow-origin", "*")
+        self.send_header("access-control-allow-private-network", "true")
 
 
 def _recognize_drawing(request: dict[str, Any]) -> dict[str, Any]:
@@ -112,8 +125,13 @@ def _recognize_drawing(request: dict[str, Any]) -> dict[str, Any]:
         mime_type=mime_type,
         min_line_length=int(float(request.get("min_line_length") or 45)),
         merge_tolerance_px=float(request.get("merge_tolerance_px") or 18),
-        pipe_candidate_samples=request.get("pipe_candidate_samples") if isinstance(request.get("pipe_candidate_samples"), list) else None,
-        pipe_style_samples=request.get("pipe_style_samples") if isinstance(request.get("pipe_style_samples"), list) else None,
+        pipe_style_samples=(
+            request.get("pipe_style_samples")
+            if isinstance(request.get("pipe_style_samples"), list)
+            else request.get("pipe_candidate_samples")
+            if isinstance(request.get("pipe_candidate_samples"), list)
+            else None
+        ),
         junction_anchor_samples=request.get("junction_anchor_samples") if isinstance(request.get("junction_anchor_samples"), list) else None,
     )
     assets = build_dashboard_assets_from_recognition(

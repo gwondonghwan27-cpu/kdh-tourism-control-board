@@ -722,7 +722,8 @@ function applyCurrentRecognitionAssets() {
 
 async function recognizeDrawingGeometryWithApi(file) {
   const fileBase64 = await fileToBase64(file);
-  const response = await fetch("/api/recognize-drawing", {
+  const apiBase = String(window.__DRAWING_RECOGNITION_API_BASE__ || "").replace(/\/$/, "");
+  const response = await fetch(`${apiBase}/api/recognize-drawing`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -735,6 +736,7 @@ async function recognizeDrawingGeometryWithApi(file) {
       default_diameter_mm: Number($("drawing-diameter").value || 150),
       default_material: $("drawing-material").value || "PVC",
       pipe_candidate_samples: state.drawingPipeSamples,
+      pipe_style_samples: state.drawingPipeSamples,
       junction_anchor_samples: state.drawingJunctionSamples,
       use_gemini: true,
     }),
