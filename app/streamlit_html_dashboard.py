@@ -30,6 +30,8 @@ CSV_FILES = [
     "household_demand_timeseries.csv",
 ]
 
+STREAMLIT_DASHBOARD_HEIGHT = 4200
+
 
 def main() -> None:
     import streamlit as st
@@ -58,6 +60,7 @@ def main() -> None:
           iframe {
             display: block;
             width: 100%;
+            min-height: 100vh;
           }
           footer { display: none; }
         </style>
@@ -69,8 +72,8 @@ def main() -> None:
     recognition_api_base = ensure_local_recognition_api(st)
     components.html(
         build_dashboard_html(recognized_assets=recognized_assets, recognition_api_base=recognition_api_base),
-        height=2600,
-        scrolling=False,
+        height=STREAMLIT_DASHBOARD_HEIGHT,
+        scrolling=True,
     )
 
 
@@ -229,6 +232,7 @@ def build_dashboard_html(
         margin: 0;
         min-height: 100%;
         overflow-x: hidden;
+        overflow-y: auto;
       }}
       {css}
     </style>
