@@ -1594,10 +1594,11 @@ function renderMap(snapshot) {
       const point = project(node);
       const selected = selectedKind === "node" && selectedId === node.node_id;
       const multiSelected = multiNodes.has(node.node_id);
+      const isSource = node.node_type === "reservoir";
       const color = node.status === "low" ? "#dc2626" : node.status === "marginal" ? "#d97706" : node.node_type === "reservoir" ? "#0f766e" : "#247a5a";
       const radius = node.node_type === "reservoir" ? 13 : 10;
       const pressure = node.node_type === "reservoir" ? "SRC" : `${node.pressure.toFixed(1)}m`;
-      return `<g class="junction-icon" data-node="${node.node_id}" transform="translate(${point.x} ${point.y})">
+      return `<g class="junction-icon ${isSource ? "source-icon" : ""}" data-node="${node.node_id}" ${isSource ? `data-source="${node.node_id}"` : ""} transform="translate(${point.x} ${point.y})">
         ${selected ? `<circle class="selected-ring" r="18" />` : ""}
         ${multiSelected ? `<circle class="multi-selected-ring" r="${radius + 9}" />` : ""}
         <circle class="junction-body" r="${radius}" fill="${color}" />
@@ -1679,7 +1680,22 @@ function renderMap(snapshot) {
       selectPipe(el.dataset.pipe);
     }),
   );
-  svg.querySelectorAll("[data-node]").forEach((el) =>
+  svg.querySelectorAll("[data-source]").forEach((el) =>
+    el.addEventListener("click", (event) => {
+      if (state.addMode || state.pipeDrawMode || state.sourceDrawMode) return;
+      event.stopPropagation();
+      if (event.shiftKey) {
+        toggleMultiNode(el.dataset.source);
+        return;
+      }
+      if (bulkSelectionCount() > 0) {
+        addMultiNode(el.dataset.source);
+        return;
+      }
+      selectSourcePump(el.dataset.source);
+    }),
+  );
+  svg.querySelectorAll("[data-node]:not([data-source])").forEach((el) =>
     el.addEventListener("click", (event) => {
       if (state.pipeDrawMode) {
         event.stopPropagation();
@@ -1797,7 +1813,6 @@ function selectObjectsInBox(box, snapshot, project) {
   state.multiSelectedPipes = new Set();
   const nodeById = new Map(snapshot.nodes.map((node) => [node.node_id, node]));
   for (const node of snapshot.nodes) {
-    if (node.node_type === "reservoir") continue;
     const point = project(node);
     if (pointInRect(point, box)) state.multiSelectedNodes.add(node.node_id);
   }
@@ -1815,7 +1830,14 @@ function selectObjectsInBox(box, snapshot, project) {
   const firstPipe = [...state.multiSelectedPipes][0];
   state.selected = firstPipe ? `pipe:${firstPipe}` : firstNode ? `node:${firstNode}` : state.selected;
   if (firstPipe && $("selected-pipe").querySelector(`option[value="${firstPipe}"]`)) $("selected-pipe").value = firstPipe;
-  if (firstNode && $("selected-junction").querySelector(`option[value="${firstNode}"]`)) $("selected-junction").value = firstNode;
+  if (firstNode) {
+    const firstNodeRecord = nodeById.get(firstNode);
+    if (firstNodeRecord?.node_type === "reservoir" && $("selected-source").querySelector(`option[value="${firstNode}"]`)) {
+      $("selected-source").value = firstNode;
+    } else if ($("selected-junction").querySelector(`option[value="${firstNode}"]`)) {
+      $("selected-junction").value = firstNode;
+    }
+  }
   updateBulkSelectionControls();
 }
 
@@ -1939,23 +1961,31 @@ function addMultiPipe(pipeId) {
 
 function toggleMultiNode(nodeId) {
   const node = state.nodes.find((item) => item.node_id === nodeId);
-  if (!node || node.node_type === "reservoir") return;
+  if (!node) return;
   state.multiSelectedNodes = state.multiSelectedNodes || new Set();
   if (state.multiSelectedNodes.has(nodeId)) state.multiSelectedNodes.delete(nodeId);
   else state.multiSelectedNodes.add(nodeId);
   state.selected = `node:${nodeId}`;
-  if ($("selected-junction").querySelector(`option[value="${nodeId}"]`)) $("selected-junction").value = nodeId;
+  if (node.node_type === "reservoir" && $("selected-source").querySelector(`option[value="${nodeId}"]`)) {
+    $("selected-source").value = nodeId;
+  } else if ($("selected-junction").querySelector(`option[value="${nodeId}"]`)) {
+    $("selected-junction").value = nodeId;
+  }
   updateBulkSelectionControls();
   render();
 }
 
 function addMultiNode(nodeId) {
   const node = state.nodes.find((item) => item.node_id === nodeId);
-  if (!node || node.node_type === "reservoir") return;
+  if (!node) return;
   state.multiSelectedNodes = state.multiSelectedNodes || new Set();
   state.multiSelectedNodes.add(nodeId);
   state.selected = `node:${nodeId}`;
-  if ($("selected-junction").querySelector(`option[value="${nodeId}"]`)) $("selected-junction").value = nodeId;
+  if (node.node_type === "reservoir" && $("selected-source").querySelector(`option[value="${nodeId}"]`)) {
+    $("selected-source").value = nodeId;
+  } else if ($("selected-junction").querySelector(`option[value="${nodeId}"]`)) {
+    $("selected-junction").value = nodeId;
+  }
   updateBulkSelectionControls();
   render();
 }
@@ -1984,8 +2014,12 @@ function bulkSelectionCount() {
 function updateBulkSelectionControls() {
   const nodeCount = state.multiSelectedNodes?.size || 0;
   const pipeCount = state.multiSelectedPipes?.size || 0;
+  const sourceCount = [...(state.multiSelectedNodes || [])].filter((nodeId) =>
+    state.nodes.some((node) => node.node_id === nodeId && node.node_type === "reservoir"),
+  ).length;
+  const junctionCount = Math.max(nodeCount - sourceCount, 0);
   if ($("bulk-selection-count")) $("bulk-selection-count").textContent = `선택 ${nodeCount + pipeCount}개`;
-  if ($("bulk-selection-mode")) $("bulk-selection-mode").textContent = `Junction ${nodeCount}개 · Pipe ${pipeCount}개`;
+  if ($("bulk-selection-mode")) $("bulk-selection-mode").textContent = `Junction ${junctionCount}개 · Source ${sourceCount}개 · Pipe ${pipeCount}개`;
 }
 
 function average(values) {
@@ -2112,8 +2146,13 @@ function startNodeDrag(nodeId, event = null) {
   }
   state.draggingNodeId = nodeId;
   state.selected = `node:${nodeId}`;
-  if ($("selected-junction").querySelector(`option[value="${nodeId}"]`)) $("selected-junction").value = nodeId;
-  if ($("selected-source").querySelector(`option[value="${nodeId}"]`)) $("selected-source").value = nodeId;
+  if (node.node_type === "reservoir") {
+    state.editorTab = "source";
+    if ($("selected-source").querySelector(`option[value="${nodeId}"]`)) $("selected-source").value = nodeId;
+  } else if ($("selected-junction").querySelector(`option[value="${nodeId}"]`)) {
+    state.editorTab = "junction";
+    $("selected-junction").value = nodeId;
+  }
 }
 
 function dragSelectedNode(event) {
@@ -2950,17 +2989,24 @@ function endpointForPipe(pipe, from, originalTo) {
 
 function refreshSelectedDetail(snapshot) {
   if (bulkSelectionCount() > 1) {
-    const nodeCount = state.multiSelectedNodes?.size || 0;
+    const sourceCount = [...(state.multiSelectedNodes || [])].filter((nodeId) =>
+      state.nodes.some((node) => node.node_id === nodeId && node.node_type === "reservoir"),
+    ).length;
+    const nodeCount = Math.max((state.multiSelectedNodes?.size || 0) - sourceCount, 0);
     const pipeCount = state.multiSelectedPipes?.size || 0;
     $("selection-detail").innerHTML = `<strong>다중 선택</strong>
-      <span>Junction ${nodeCount}개 · Pipe ${pipeCount}개</span>
-      <span>선택된 Junction을 드래그하면 연결된 선택 객체를 함께 이동합니다.</span>`;
+      <span>Junction ${nodeCount}개 · Source ${sourceCount}개 · Pipe ${pipeCount}개</span>
+      <span>선택된 Junction/Source를 드래그하면 연결된 선택 객체를 함께 이동합니다.</span>`;
     return;
   }
   if (!state.selected) return;
   const [kind, id] = state.selected.split(":");
   if (kind === "pipe") showPipeDetail(id, snapshot);
-  if (kind === "node") showNodeDetail(id, snapshot);
+  if (kind === "node") {
+    const node = snapshot.nodes.find((item) => item.node_id === id);
+    if (node?.node_type === "reservoir") showSourceDetail(id, snapshot);
+    else showNodeDetail(id, snapshot);
+  }
 }
 
 function showPipeDetail(pipeId, snapshot) {
@@ -2998,6 +3044,19 @@ function showNodeDetail(nodeId, snapshot) {
     <span>압력 ${node.pressure.toFixed(1)} m · 기준 15 m ${node.compliant ? "충족" : "미달"}</span>
     <span>수요 ${node.localDemand.toFixed(2)} L/s · 표고 ${Number(node.elevation_m || 0).toFixed(1)} m · ${statusLabel(node.status)}</span>
     <span>좌표 X ${Number(node.x || 0).toFixed(1)} · Y ${Number(node.y || 0).toFixed(1)} · DMA ${node.dma_id}</span>`;
+}
+
+function showSourceDetail(sourceId, snapshot) {
+  const source = snapshot.nodes.find((item) => item.node_id === sourceId && item.node_type === "reservoir");
+  if (!source) return;
+  const reservoir = state.reservoirs.find((item) => item.node_id === sourceId);
+  const pump = sourcePumpFor(sourceId);
+  const pipe = sourcePipeFor(sourceId);
+  const target = sourceTargetFor(sourceId);
+  $("selection-detail").innerHTML = `<strong>Source/Pump ${sourceId}</strong>
+    <span>공급수두 ${Number(reservoir?.head_m || 0).toFixed(1)} m · Pump 가압 ${Number((pump?.base_head_gain_m || 0) * (pump?.speed_multiplier || 1)).toFixed(1)} m</span>
+    <span>연결 Junction ${target?.node_id || "없음"} · 연결 Pipe ${pipe?.pipe_id || "없음"}</span>
+    <span>좌표 X ${Number(source.x || 0).toFixed(1)} · Y ${Number(source.y || 0).toFixed(1)} · DMA ${source.dma_id}</span>`;
 }
 
 function renderPressureBars(snapshot) {
@@ -3543,6 +3602,7 @@ function selectNode(nodeId) {
 
 function selectSourcePump(sourceId) {
   if (!sourceId) return;
+  clearBulkSelection();
   state.selected = `node:${sourceId}`;
   state.editorTab = "source";
   $("selected-source").value = sourceId;
