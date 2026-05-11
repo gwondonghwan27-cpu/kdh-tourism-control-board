@@ -14,9 +14,10 @@ import math
 import os
 import re
 from dataclasses import asdict, dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
+from pydantic import BaseModel, ConfigDict, Field
 
 
 SUPPORTED_IMAGE_MIME_TYPES = {"image/jpeg", "image/png"}
@@ -35,6 +36,71 @@ SUPPORTED_PDF_EXTENSIONS = {".pdf"}
 SUPPORTED_CAD_EXTENSIONS = {".dwg", ".dxf"}
 MAX_USER_PIPE_SAMPLES = 100
 MAX_USER_JUNCTION_ANCHORS = 100
+LOW_CONFIDENCE_THRESHOLD = 0.55
+
+
+class RecognitionBBox(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    x1: float
+    y1: float
+    x2: float
+    y2: float
+
+
+class EvidenceField(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    value: str | None = None
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    bbox: RecognitionBBox | None = None
+    source_text: str | None = None
+    is_inferred: bool = False
+    needs_review: bool = False
+
+
+class SemanticAssetHint(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    label: str | None = None
+    asset_type: Literal["junction", "pipe", "valve", "pump", "reservoir", "label", "unknown"] = "unknown"
+    bbox: RecognitionBBox | None = None
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    source_text: str | None = None
+    is_inferred: bool = False
+    needs_review: bool = False
+
+
+class SemanticPipeHint(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    label: str | None = None
+    from_label: str | None = None
+    to_label: str | None = None
+    bbox: RecognitionBBox | None = None
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    source_text: str | None = None
+    is_inferred: bool = False
+    needs_review: bool = False
+
+
+class WaterNetworkExtraction(BaseModel):
+    """Structured Gemini output for water-network drawing hints."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["water_network_extract_v1"] = "water_network_extract_v1"
+    drawing_type: Literal["water_network", "unknown"] = "unknown"
+    scale: EvidenceField = Field(default_factory=EvidenceField)
+    unit: EvidenceField = Field(default_factory=EvidenceField)
+    junctions: list[SemanticAssetHint] = Field(default_factory=list)
+    pipes: list[SemanticPipeHint] = Field(default_factory=list)
+    valves: list[SemanticAssetHint] = Field(default_factory=list)
+    pumps: list[SemanticAssetHint] = Field(default_factory=list)
+    reservoirs: list[SemanticAssetHint] = Field(default_factory=list)
+    labels: list[SemanticAssetHint] = Field(default_factory=list)
+    legend: list[EvidenceField] = Field(default_factory=list)
+    ambiguities: list[str] = Field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -138,6 +204,7 @@ class DashboardAssetExport:
     nodes: list[dict[str, Any]]
     pipes: list[dict[str, Any]]
     reservoirs: list[dict[str, Any]]
+    pumps: list[dict[str, Any]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -145,6 +212,7 @@ class DashboardAssetExport:
             "nodes": self.nodes,
             "pipes": self.pipes,
             "reservoirs": self.reservoirs,
+            "pumps": self.pumps,
             "warnings": self.warnings,
         }
 
@@ -158,6 +226,7 @@ def analyze_drawing_image(
     pipe_style_samples: list[dict[str, float]] | None = None,
     pipe_candidate_samples: list[dict[str, float]] | None = None,
     junction_anchor_samples: list[dict[str, float]] | None = None,
+    source_pump_candidate_samples: list[dict[str, float]] | None = None,
 ) -> OpenCVRecognitionResult:
     """Decode a JPG/PNG drawing through a pipe-style mask and skeleton graph route."""
 
@@ -249,6 +318,13 @@ def analyze_drawing_image(
         pipe_candidates,
         image_width=width,
         image_height=height,
+        source_pump_candidate_samples=source_pump_candidate_samples,
+    )
+    quality_report = validate_recognition_quality(
+        merged_nodes,
+        pipe_candidates,
+        image_width=width,
+        image_height=height,
     )
     binary_payload = json.dumps(
         {
@@ -256,13 +332,17 @@ def analyze_drawing_image(
             "nodes": merged_nodes,
             "pipes": pipe_candidates,
             "opencv_nodes": node_candidates,
-            "low_confidence_pipes": [pipe for pipe in pipe_candidates if float(pipe.get("confidence", 1.0)) < 0.55],
+            "low_confidence_pipes": [
+                pipe for pipe in pipe_candidates if float(pipe.get("confidence", 1.0)) < LOW_CONFIDENCE_THRESHOLD
+            ],
+            "quality_report": quality_report,
             "text_regions": _contours_to_regions(cv2, text_mask),
             "style_regions": {
                 "pipe_style": pipe_style,
                 "pipe_samples": pipe_guides,
                 "pipe_candidate_samples": pipe_guides,
                 "junction_samples": junction_anchors,
+                "source_pump_samples": _normalize_source_pump_candidate_samples(source_pump_candidate_samples or [], width, height),
                 "grid_regions": _contours_to_regions(cv2, grid_mask)[:80],
                 "road_regions": _contours_to_regions(cv2, road_mask)[:80],
             },
@@ -375,6 +455,12 @@ def analyze_drawing_cad(
             "nodes": nodes,
             "pipes": pipes,
             "cad_warnings": warnings,
+            "quality_report": validate_recognition_quality(
+                nodes,
+                pipes,
+                image_width=max(width, 1),
+                image_height=max(height, 1),
+            ),
             "dashboard_assets": dashboard_assets.to_dict(),
         },
         ensure_ascii=False,
@@ -400,6 +486,7 @@ def analyze_drawing_pdf(
     mime_type: str = "application/pdf",
     min_line_length: int = 35,
     merge_tolerance_px: float = 16.0,
+    source_pump_candidate_samples: list[dict[str, float]] | None = None,
 ) -> PdfRecognitionResult:
     """Route PDF drawings through vector extraction before scanned-image fallback."""
 
@@ -422,12 +509,16 @@ def analyze_drawing_pdf(
             pdf_bytes,
             min_line_length=min_line_length,
             merge_tolerance_px=merge_tolerance_px,
+            source_pump_candidate_samples=source_pump_candidate_samples,
         )
         if rendered:
             rendered_result, render_warnings = rendered
             warnings.extend(render_warnings)
             payload = json.loads(rendered_result.binary_payload.decode("utf-8"))
-            assets = build_dashboard_assets_from_recognition(rendered_result)
+            assets = build_dashboard_assets_from_recognition(
+                rendered_result,
+                source_pump_candidate_samples=source_pump_candidate_samples,
+            )
             binary_payload = json.dumps(
                 {
                     "file": {
@@ -440,6 +531,13 @@ def analyze_drawing_pdf(
                     "nodes": payload.get("nodes", []),
                     "pipes": payload.get("pipes", []),
                     "pdf_warnings": warnings,
+                    "quality_report": payload.get("quality_report")
+                    or validate_recognition_quality(
+                        payload.get("nodes", []),
+                        payload.get("pipes", []),
+                        image_width=rendered_result.width,
+                        image_height=rendered_result.height,
+                    ),
                     "dashboard_assets": assets.to_dict(),
                 },
                 ensure_ascii=False,
@@ -470,6 +568,7 @@ def analyze_drawing_pdf(
         pipes,
         image_width=max(width, 1),
         image_height=max(height, 1),
+        source_pump_candidate_samples=source_pump_candidate_samples,
     )
     binary_payload = json.dumps(
         {
@@ -483,6 +582,12 @@ def analyze_drawing_pdf(
             "nodes": nodes,
             "pipes": pipes,
             "pdf_warnings": warnings,
+            "quality_report": validate_recognition_quality(
+                nodes,
+                pipes,
+                image_width=max(width, 1),
+                image_height=max(height, 1),
+            ),
             "dashboard_assets": assets.to_dict(),
         },
         ensure_ascii=False,
@@ -510,6 +615,7 @@ def recognize_drawing_file(
     pipe_style_samples: list[dict[str, float]] | None = None,
     pipe_candidate_samples: list[dict[str, float]] | None = None,
     junction_anchor_samples: list[dict[str, float]] | None = None,
+    source_pump_candidate_samples: list[dict[str, float]] | None = None,
 ) -> tuple[str, OpenCVRecognitionResult | PdfRecognitionResult | CadRecognitionResult]:
     """Recognize an uploaded drawing through the route selected by file type."""
 
@@ -524,6 +630,7 @@ def recognize_drawing_file(
             pipe_style_samples=pipe_style_samples,
             pipe_candidate_samples=pipe_candidate_samples,
             junction_anchor_samples=junction_anchor_samples,
+            source_pump_candidate_samples=source_pump_candidate_samples,
         )
     if drawing_file_type == "pdf":
         return drawing_file_type, analyze_drawing_pdf(
@@ -532,6 +639,7 @@ def recognize_drawing_file(
             mime_type=mime_type or "application/pdf",
             min_line_length=min_line_length,
             merge_tolerance_px=merge_tolerance_px,
+            source_pump_candidate_samples=source_pump_candidate_samples,
         )
     if drawing_file_type == "cad":
         return drawing_file_type, analyze_drawing_cad(
@@ -552,6 +660,7 @@ def build_dashboard_assets_from_recognition(
     default_elevation_m: float = 30.0,
     default_demand_lps: float = 0.8,
     include_virtual_reservoir: bool = True,
+    source_pump_candidate_samples: list[dict[str, float]] | None = None,
 ) -> DashboardAssetExport:
     """Convert a recognition result into dashboard-compatible assets."""
 
@@ -567,6 +676,8 @@ def build_dashboard_assets_from_recognition(
         default_elevation_m=default_elevation_m,
         default_demand_lps=default_demand_lps,
         include_virtual_reservoir=include_virtual_reservoir,
+        source_pump_candidate_samples=source_pump_candidate_samples
+        or payload.get("style_regions", {}).get("source_pump_samples", []),
     )
 
 
@@ -582,11 +693,12 @@ def build_dashboard_assets_from_candidates(
     default_elevation_m: float = 30.0,
     default_demand_lps: float = 0.8,
     include_virtual_reservoir: bool = True,
+    source_pump_candidate_samples: list[dict[str, float]] | None = None,
 ) -> DashboardAssetExport:
     """Build the CSV-shaped node/pipe records used by the HTML dashboard."""
 
     safe_scale = max(float(scale_m_per_px), 0.001)
-    export_pipes = [pipe for pipe in pipes if float(pipe.get("confidence", 1.0)) >= 0.55]
+    export_pipes = [pipe for pipe in pipes if float(pipe.get("confidence", 1.0)) >= LOW_CONFIDENCE_THRESHOLD]
     used_node_ids = {
         str(pipe.get(key, ""))
         for pipe in export_pipes
@@ -612,7 +724,7 @@ def build_dashboard_assets_from_candidates(
     warnings: list[str] = []
     dashboard_pipes: list[dict[str, Any]] = []
     for pipe in pipes:
-        if float(pipe.get("confidence", 1.0)) < 0.55:
+        if float(pipe.get("confidence", 1.0)) < LOW_CONFIDENCE_THRESHOLD:
             warnings.append(f"{pipe.get('id', 'unknown')} is a low-confidence pipe candidate and was not auto-exported.")
             continue
         from_node = node_id_by_candidate.get(str(pipe.get("from_node", "")))
@@ -642,8 +754,19 @@ def build_dashboard_assets_from_candidates(
             }
         )
 
-    source_candidate_id = _select_source_candidate_id(export_nodes, export_pipes)
+    source_samples = _normalize_source_pump_candidate_samples(
+        source_pump_candidate_samples or [],
+        image_width,
+        image_height,
+    )
+    source_sample = source_samples[0] if source_samples else None
+    source_candidate_id = (
+        _nearest_node_id_to_sample(export_nodes, source_sample)
+        if source_sample
+        else _select_source_candidate_id(export_nodes, export_pipes)
+    )
     reservoirs: list[dict[str, Any]] = []
+    pumps: list[dict[str, Any]] = []
     if include_virtual_reservoir and dashboard_nodes:
         source_node = next(
             (
@@ -653,10 +776,20 @@ def build_dashboard_assets_from_candidates(
             ),
             min(dashboard_nodes, key=lambda node: float(node["x"])),
         )
+        reservoir_x = (
+            round(float(source_sample["x"]) * safe_scale, 2)
+            if source_sample
+            else round(float(source_node["x"]) - 80 * safe_scale, 2)
+        )
+        reservoir_y = (
+            round((float(image_height) - float(source_sample["y"])) * safe_scale, 2)
+            if source_sample
+            else source_node["y"]
+        )
         reservoir_node = {
             "node_id": "R_IMG_1",
-            "x": round(float(source_node["x"]) - 80 * safe_scale, 2),
-            "y": source_node["y"],
+            "x": reservoir_x,
+            "y": reservoir_y,
             "elevation_m": float(default_elevation_m) + 5.0,
             "base_demand_lps": 0.0,
             "node_type": "reservoir",
@@ -664,13 +797,23 @@ def build_dashboard_assets_from_candidates(
         }
         dashboard_nodes.insert(0, reservoir_node)
         reservoirs.append({"node_id": "R_IMG_1", "head_m": 58.0})
+        pumps.append(
+            {
+                "pump_id": "PU_IMG_1",
+                "from_node": "R_IMG_1",
+                "to_node": source_node["node_id"],
+                "base_head_gain_m": 3.0,
+                "speed_multiplier": 1.0,
+                "status": "on",
+            }
+        )
         dashboard_pipes.insert(
             0,
             {
                 "pipe_id": "P_IMG_SOURCE",
                 "from_node": "R_IMG_1",
                 "to_node": source_node["node_id"],
-                "length_m": 80.0 * safe_scale,
+                "length_m": round(_dashboard_node_distance(reservoir_node, source_node), 2),
                 "geometry_type": "straight",
                 "geometry_m": [],
                 "diameter_mm": max(float(default_diameter_mm), 250.0),
@@ -686,7 +829,10 @@ def build_dashboard_assets_from_candidates(
                 "burst_history_count": 0,
             },
         )
-        warnings.append("A virtual reservoir and source pipe were added for dashboard preview.")
+        if source_sample:
+            warnings.append("A user-selected Source/Pump candidate was used for the source location.")
+        else:
+            warnings.append("A virtual reservoir and source pipe were added for dashboard preview.")
 
     if not dashboard_nodes:
         warnings.append("No dashboard nodes were created from the drawing.")
@@ -697,6 +843,7 @@ def build_dashboard_assets_from_candidates(
         nodes=dashboard_nodes,
         pipes=dashboard_pipes,
         reservoirs=reservoirs,
+        pumps=pumps,
         warnings=warnings,
     )
 
@@ -721,6 +868,199 @@ def _dashboard_pipe_geometry(
         }
         for point in points
     ]
+
+
+def validate_recognition_quality(
+    nodes: list[dict[str, Any]],
+    pipes: list[dict[str, Any]],
+    *,
+    image_width: int,
+    image_height: int,
+    semantic_hints: dict[str, Any] | list[Any] | None = None,
+) -> dict[str, Any]:
+    """Return deterministic review flags for recognized water-network topology."""
+
+    review_items: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    node_ids = {str(node.get("id", "")) for node in nodes if node.get("id")}
+    used_node_ids: set[str] = set()
+    pipe_pairs: set[tuple[str, str]] = set()
+    confidence_values: list[float] = []
+
+    if not nodes:
+        warnings.append("No junction/node candidates were recognized.")
+        review_items.append({"kind": "topology", "target": "nodes", "reason": "no_nodes"})
+    if not pipes:
+        warnings.append("No pipe candidates were recognized.")
+        review_items.append({"kind": "topology", "target": "pipes", "reason": "no_pipes"})
+
+    for node in nodes:
+        node_id = str(node.get("id", "unknown"))
+        try:
+            x = float(node.get("x"))
+            y = float(node.get("y"))
+        except (TypeError, ValueError):
+            review_items.append({"kind": "node", "target": node_id, "reason": "invalid_coordinate"})
+            continue
+        if not (0 <= x <= image_width and 0 <= y <= image_height):
+            review_items.append({"kind": "node", "target": node_id, "reason": "coordinate_out_of_bounds"})
+
+    for pipe in pipes:
+        pipe_id = str(pipe.get("id", "unknown"))
+        start = str(pipe.get("from_node", ""))
+        end = str(pipe.get("to_node", ""))
+        if start:
+            used_node_ids.add(start)
+        if end:
+            used_node_ids.add(end)
+        try:
+            confidence = float(pipe.get("confidence", 1.0))
+        except (TypeError, ValueError):
+            confidence = 0.0
+        confidence_values.append(confidence)
+
+        if confidence < LOW_CONFIDENCE_THRESHOLD:
+            review_items.append(
+                {
+                    "kind": "pipe",
+                    "target": pipe_id,
+                    "reason": "low_confidence",
+                    "confidence": round(confidence, 3),
+                }
+            )
+        if not start or not end or start == end:
+            review_items.append({"kind": "pipe", "target": pipe_id, "reason": "invalid_endpoint"})
+        elif start not in node_ids or end not in node_ids:
+            review_items.append({"kind": "pipe", "target": pipe_id, "reason": "endpoint_missing_node"})
+        pair = tuple(sorted((start, end)))
+        if start and end and pair in pipe_pairs:
+            review_items.append({"kind": "pipe", "target": pipe_id, "reason": "duplicate_connection"})
+        pipe_pairs.add(pair)
+        try:
+            if float(pipe.get("length_px", 0.0)) <= 8.0:
+                review_items.append({"kind": "pipe", "target": pipe_id, "reason": "too_short"})
+        except (TypeError, ValueError):
+            review_items.append({"kind": "pipe", "target": pipe_id, "reason": "invalid_length"})
+
+    isolated_nodes = sorted(node_ids - used_node_ids)
+    for node_id in isolated_nodes[:25]:
+        review_items.append({"kind": "node", "target": node_id, "reason": "isolated_node"})
+    if len(isolated_nodes) > 25:
+        review_items.append(
+            {
+                "kind": "node",
+                "target": "isolated_nodes",
+                "reason": "many_isolated_nodes",
+                "count": len(isolated_nodes),
+            }
+        )
+
+    semantic_review_count = _semantic_needs_review_count(semantic_hints)
+    if semantic_review_count:
+        review_items.append(
+            {
+                "kind": "semantic",
+                "target": "gemini",
+                "reason": "semantic_hints_need_review",
+                "count": semantic_review_count,
+            }
+        )
+
+    warning_reasons = {str(item["reason"]) for item in review_items}
+    if "low_confidence" in warning_reasons:
+        warnings.append("Some pipe candidates are below the auto-export confidence threshold.")
+    if "isolated_node" in warning_reasons or "many_isolated_nodes" in warning_reasons:
+        warnings.append("Some recognized nodes are not connected to any exported pipe.")
+    if "endpoint_missing_node" in warning_reasons:
+        warnings.append("Some pipe endpoints do not map back to recognized nodes.")
+
+    low_confidence_count = sum(1 for value in confidence_values if value < LOW_CONFIDENCE_THRESHOLD)
+    auto_pipe_count = len(confidence_values) - low_confidence_count
+    hard_error_reasons = {"endpoint_missing_node", "invalid_endpoint", "invalid_coordinate"}
+    return {
+        "schema_version": "recognition_quality_v1",
+        "image": {"width": image_width, "height": image_height},
+        "counts": {
+            "nodes": len(nodes),
+            "pipes": len(pipes),
+            "auto_pipes": auto_pipe_count,
+            "review_pipes": low_confidence_count,
+            "review_items": len(review_items),
+        },
+        "confidence": {
+            "min": round(min(confidence_values), 3) if confidence_values else None,
+            "avg": round(sum(confidence_values) / len(confidence_values), 3) if confidence_values else None,
+            "threshold": LOW_CONFIDENCE_THRESHOLD,
+        },
+        "can_auto_apply": bool(
+            nodes
+            and auto_pipe_count
+            and not any(item["reason"] in hard_error_reasons for item in review_items)
+        ),
+        "review_items": review_items,
+        "warnings": warnings,
+    }
+
+
+def semantic_samples_from_gemini(
+    parsed_json: dict[str, Any] | list[Any] | None,
+    *,
+    image_width: int,
+    image_height: int,
+) -> dict[str, Any]:
+    """Convert structured Gemini bbox hints into OpenCV anchor/sample inputs."""
+
+    if not isinstance(parsed_json, dict):
+        return {"junction_anchor_samples": [], "pipe_candidate_samples": [], "source_pump_candidate_samples": [], "review_regions": []}
+
+    normalized = _normalize_water_network_extraction(parsed_json)
+    if normalized is None:
+        normalized = _legacy_gemini_hints_to_water_network(parsed_json)
+    if normalized is None:
+        return {"junction_anchor_samples": [], "pipe_candidate_samples": [], "source_pump_candidate_samples": [], "review_regions": []}
+
+    junction_samples = [
+        sample
+        for item in normalized.get("junctions", [])
+        if (sample := _sample_from_semantic_bbox(item, image_width=image_width, image_height=image_height)) is not None
+        and float(item.get("confidence", 0.0)) >= 0.45
+    ][:MAX_USER_JUNCTION_ANCHORS]
+    pipe_samples = [
+        sample
+        for item in normalized.get("pipes", [])
+        if (sample := _sample_from_semantic_bbox(item, image_width=image_width, image_height=image_height)) is not None
+        and float(item.get("confidence", 0.0)) >= 0.35
+    ][:MAX_USER_PIPE_SAMPLES]
+    source_samples = [
+        sample
+        for item in [*normalized.get("reservoirs", []), *normalized.get("pumps", [])]
+        if (sample := _sample_from_semantic_bbox(item, image_width=image_width, image_height=image_height)) is not None
+        and float(item.get("confidence", 0.0)) >= 0.35
+    ][:MAX_USER_PIPE_SAMPLES]
+    review_regions = [
+        {
+            "asset_type": str(item.get("asset_type", "pipe")),
+            "label": item.get("label"),
+            "bbox": item.get("bbox"),
+            "confidence": item.get("confidence", 0.0),
+            "reason": "semantic_needs_review" if item.get("needs_review") else "low_semantic_confidence",
+        }
+        for item in [
+            *normalized.get("junctions", []),
+            *normalized.get("pipes", []),
+            *normalized.get("valves", []),
+            *normalized.get("pumps", []),
+            *normalized.get("reservoirs", []),
+        ]
+        if item.get("needs_review") or float(item.get("confidence", 0.0)) < 0.5
+    ][:80]
+    return {
+        "junction_anchor_samples": junction_samples,
+        "pipe_candidate_samples": pipe_samples,
+        "source_pump_candidate_samples": source_samples,
+        "review_regions": review_regions,
+        "normalized_schema": normalized,
+    }
 
 
 def _select_source_candidate_id(
@@ -748,12 +1088,44 @@ def _select_source_candidate_id(
     return str(min(valid_nodes, key=source_rank)["id"])
 
 
+def _normalize_source_pump_candidate_samples(
+    samples: list[dict[str, float]],
+    width: int,
+    height: int,
+) -> list[dict[str, float]]:
+    normalized: list[dict[str, float]] = []
+    for index, sample in enumerate(_normalize_pipe_style_samples(samples, width, height), 1):
+        candidate = dict(sample)
+        candidate["id"] = f"SP{index}"
+        candidate["source"] = str(sample.get("source", "user_source_pump_candidate"))
+        normalized.append(candidate)
+    return normalized
+
+
+def _nearest_node_id_to_sample(nodes: list[dict[str, Any]], sample: dict[str, float] | None) -> str | None:
+    if not nodes or sample is None:
+        return None
+    sx, sy = float(sample["x"]), float(sample["y"])
+    nearest = min(
+        nodes,
+        key=lambda node: math.hypot(float(node.get("x", 0.0)) - sx, float(node.get("y", 0.0)) - sy),
+    )
+    return str(nearest.get("id")) if nearest.get("id") else None
+
+
+def _dashboard_node_distance(first: dict[str, Any], second: dict[str, Any]) -> float:
+    return math.hypot(
+        float(first.get("x", 0.0)) - float(second.get("x", 0.0)),
+        float(first.get("y", 0.0)) - float(second.get("y", 0.0)),
+    )
+
+
 def call_gemini_vision(
     image_bytes: bytes,
     mime_type: str,
     *,
     api_key: str | None = None,
-    model: str = "gemini-2.5-flash",
+    model: str = "gemini-3-flash-preview",
     prompt: str | None = None,
 ) -> GeminiVisionResult:
     """Ask Gemini Vision for structured semantic hints from a drawing image."""
@@ -781,48 +1153,210 @@ def call_gemini_vision(
 
     default_prompt = """
 Analyze this water distribution network drawing as a machine-readable recognition aid.
-Return only JSON with this schema:
-{
-  "drawing_type": "water_network_drawing|unknown",
-  "pipe_style": {
-    "main_pipe_colors": [string],
-    "secondary_pipe_colors": [string],
-    "existing_pipe_style": string,
-    "background_or_road_style": string
-  },
-  "detected_assets": {
-    "reservoirs": [{"label": string, "box_2d": [number, number, number, number], "confidence": number}],
-    "junctions": [{"label": string, "box_2d": [number, number, number, number], "confidence": number}],
-    "valves": [{"label": string, "box_2d": [number, number, number, number], "confidence": number}],
-    "pumps": [{"label": string, "box_2d": [number, number, number, number], "confidence": number}]
-  },
-  "text_labels": [{"text": string, "meaning": "node_id|pipe_diameter|pipe_name|legend|unknown", "near": string, "confidence": number}],
-  "connection_hints": [{"from": string, "to": string, "evidence": string, "confidence": number}],
-  "legend": [{"symbol": string, "meaning": string}],
-  "risks_or_ambiguities": [string],
-  "recommended_next_step": string
-}
-Use normalized Gemini box_2d coordinates in the 0-1000 range when possible.
-Prefer visible labels and visual evidence over guesses. Use Korean for free-text descriptions.
+
+Rules:
+- Return only JSON that matches the provided schema.
+- Do not guess missing values.
+- Use null when a value is unreadable.
+- Every visible asset should include confidence and bbox evidence.
+- bbox coordinates must use image pixel coordinates when possible.
+- Mark needs_review=true when an item is blurred, partially hidden, inferred, or ambiguous.
+- Prefer visible labels and visual evidence over assumptions.
 """
     try:
         client = genai.Client(api_key=api_key)
+        config = _gemini_structured_config(types)
         response = client.models.generate_content(
             model=model,
             contents=[
                 types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
                 prompt or default_prompt,
             ],
-            config=types.GenerateContentConfig(response_mime_type="application/json"),
+            config=config,
         )
         raw_text = str(getattr(response, "text", "") or "")
+        parsed = _parse_json_response(raw_text)
+        normalized = _normalize_water_network_extraction(parsed) if isinstance(parsed, dict) else None
         return GeminiVisionResult(
             model=model,
             raw_text=raw_text,
-            parsed_json=_parse_json_response(raw_text),
+            parsed_json=normalized or parsed,
         )
     except Exception as exc:  # pragma: no cover - network/API runtime path
         return GeminiVisionResult(model=model, raw_text="", error=str(exc))
+
+
+def _gemini_structured_config(types: Any) -> Any:
+    schema = WaterNetworkExtraction.model_json_schema()
+    kwargs: dict[str, Any] = {
+        "response_mime_type": "application/json",
+        "response_json_schema": schema,
+    }
+    media_resolution = getattr(types, "MediaResolution", None)
+    if media_resolution is not None:
+        high_resolution = getattr(media_resolution, "MEDIA_RESOLUTION_HIGH", None)
+        if high_resolution is not None:
+            kwargs["media_resolution"] = high_resolution
+    thinking_config = getattr(types, "ThinkingConfig", None)
+    if thinking_config is not None:
+        try:
+            kwargs["thinking_config"] = thinking_config(thinking_level="medium")
+        except TypeError:
+            pass
+    try:
+        return types.GenerateContentConfig(**kwargs)
+    except TypeError:
+        kwargs.pop("response_json_schema", None)
+        return types.GenerateContentConfig(**kwargs)
+
+
+def _normalize_water_network_extraction(parsed_json: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(parsed_json, dict):
+        return None
+    try:
+        return WaterNetworkExtraction.model_validate(parsed_json).model_dump(mode="json")
+    except Exception:
+        return None
+
+
+def _legacy_gemini_hints_to_water_network(parsed_json: dict[str, Any]) -> dict[str, Any] | None:
+    detected_assets = parsed_json.get("detected_assets")
+    if not isinstance(detected_assets, dict):
+        return None
+
+    def legacy_assets(key: str, asset_type: str) -> list[dict[str, Any]]:
+        items = detected_assets.get(key)
+        if not isinstance(items, list):
+            return []
+        converted: list[dict[str, Any]] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            converted.append(
+                {
+                    "label": item.get("label"),
+                    "asset_type": asset_type,
+                    "bbox": _bbox_from_any(item.get("bbox") or item.get("box_2d")),
+                    "confidence": _clamp_confidence(item.get("confidence", 0.0)),
+                    "source_text": item.get("source_text"),
+                    "is_inferred": bool(item.get("is_inferred", False)),
+                    "needs_review": bool(item.get("needs_review", False)),
+                }
+            )
+        return converted
+
+    pipes = []
+    connection_hints = parsed_json.get("connection_hints", [])
+    if isinstance(connection_hints, list):
+        for item in connection_hints:
+            if not isinstance(item, dict):
+                continue
+            pipes.append(
+                {
+                    "label": item.get("label"),
+                    "from_label": item.get("from"),
+                    "to_label": item.get("to"),
+                    "bbox": _bbox_from_any(item.get("bbox") or item.get("box_2d")),
+                    "confidence": _clamp_confidence(item.get("confidence", 0.0)),
+                    "source_text": item.get("evidence"),
+                    "is_inferred": bool(item.get("is_inferred", True)),
+                    "needs_review": bool(item.get("needs_review", True)),
+                }
+            )
+
+    return {
+        "schema_version": "water_network_extract_v1",
+        "drawing_type": "water_network"
+        if parsed_json.get("drawing_type") in {"water_network", "water_network_drawing"}
+        else "unknown",
+        "scale": EvidenceField().model_dump(mode="json"),
+        "unit": EvidenceField().model_dump(mode="json"),
+        "junctions": legacy_assets("junctions", "junction"),
+        "pipes": pipes,
+        "valves": legacy_assets("valves", "valve"),
+        "pumps": legacy_assets("pumps", "pump"),
+        "reservoirs": legacy_assets("reservoirs", "reservoir"),
+        "labels": legacy_assets("text_labels", "label"),
+        "legend": [],
+        "ambiguities": [
+            str(item)
+            for item in parsed_json.get("risks_or_ambiguities", [])
+            if isinstance(item, (str, int, float))
+        ],
+    }
+
+
+def _sample_from_semantic_bbox(
+    item: dict[str, Any],
+    *,
+    image_width: int,
+    image_height: int,
+) -> dict[str, float] | None:
+    bbox = _bbox_from_any(item.get("bbox") or item.get("box_2d"))
+    if bbox is None:
+        return None
+    x1, y1, x2, y2 = bbox["x1"], bbox["y1"], bbox["x2"], bbox["y2"]
+    if max(x1, y1, x2, y2) <= 1000 and (x2 > image_width or y2 > image_height):
+        x1, x2 = x1 / 1000.0 * image_width, x2 / 1000.0 * image_width
+        y1, y2 = y1 / 1000.0 * image_height, y2 / 1000.0 * image_height
+    x = (x1 + x2) / 2
+    y = (y1 + y2) / 2
+    if not (0 <= x <= image_width and 0 <= y <= image_height):
+        return None
+    radius = max(8.0, min(32.0, max(abs(x2 - x1), abs(y2 - y1)) / 2.0))
+    return {
+        "x": round(float(x), 2),
+        "y": round(float(y), 2),
+        "radius_px": round(float(radius), 2),
+        "source": "gemini_semantic_bbox",
+        "confidence": round(_clamp_confidence(item.get("confidence", 0.0)), 3),
+    }
+
+
+def _bbox_from_any(value: Any) -> dict[str, float] | None:
+    if isinstance(value, RecognitionBBox):
+        return value.model_dump(mode="json")
+    if isinstance(value, dict):
+        try:
+            return {
+                "x1": float(value["x1"]),
+                "y1": float(value["y1"]),
+                "x2": float(value["x2"]),
+                "y2": float(value["y2"]),
+            }
+        except (KeyError, TypeError, ValueError):
+            return None
+    if isinstance(value, list) and len(value) == 4:
+        try:
+            x1, y1, x2, y2 = [float(item) for item in value]
+        except (TypeError, ValueError):
+            return None
+        return {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
+    return None
+
+
+def _clamp_confidence(value: Any) -> float:
+    try:
+        confidence = float(value)
+    except (TypeError, ValueError):
+        confidence = 0.0
+    return min(1.0, max(0.0, confidence))
+
+
+def _semantic_needs_review_count(semantic_hints: dict[str, Any] | list[Any] | None) -> int:
+    if not isinstance(semantic_hints, dict):
+        return 0
+    normalized = _normalize_water_network_extraction(semantic_hints)
+    if normalized is None:
+        normalized = _legacy_gemini_hints_to_water_network(semantic_hints)
+    if normalized is None:
+        return 0
+    count = 0
+    for key in ["junctions", "pipes", "valves", "pumps", "reservoirs", "labels"]:
+        for item in normalized.get(key, []):
+            if item.get("needs_review") or float(item.get("confidence", 0.0)) < 0.5:
+                count += 1
+    return count
 
 
 def _file_suffix(filename: str) -> str:
@@ -854,14 +1388,24 @@ def _extract_pdf_vectors_with_pymupdf(pdf_bytes: bytes) -> tuple[list[dict[str, 
             return [], 0, 0, ["PDF has no pages."]
         page = document[0]
         page_rect = page.rect
-        raw_segments: list[tuple[float, float, float, float]] = []
+        raw_segments: list[dict[str, Any]] = []
         for drawing in page.get_drawings():
+            layer = str(drawing.get("layer") or "").strip()
             for item in drawing.get("items", []):
                 if not item or item[0] != "l":
                     continue
                 start = item[1]
                 end = item[2]
-                raw_segments.append((float(start.x), float(start.y), float(end.x), float(end.y)))
+                raw_segments.append(
+                    {
+                        "x1": float(start.x),
+                        "y1": float(start.y),
+                        "x2": float(end.x),
+                        "y2": float(end.y),
+                        "layer": layer,
+                        "source_entity": "PDF_VECTOR",
+                    }
+                )
         if not raw_segments:
             return [], int(page_rect.width), int(page_rect.height), ["No vector line drawings were found on the first PDF page."]
         segments, width, height = _normalize_cad_segments(raw_segments)
@@ -875,6 +1419,7 @@ def _render_pdf_first_page_to_image_route(
     *,
     min_line_length: int,
     merge_tolerance_px: float,
+    source_pump_candidate_samples: list[dict[str, float]] | None = None,
 ) -> tuple[OpenCVRecognitionResult, list[str]] | None:
     try:
         import fitz  # type: ignore[import-not-found]
@@ -893,6 +1438,7 @@ def _render_pdf_first_page_to_image_route(
             "image/png",
             min_line_length=min_line_length,
             merge_tolerance_px=merge_tolerance_px,
+            source_pump_candidate_samples=source_pump_candidate_samples,
         )
         return result, ["Scanned PDF fallback rendered the first page to PNG and used the image route."]
     except Exception:
@@ -2514,7 +3060,7 @@ def _parse_ascii_dxf_lines(cad_bytes: bytes) -> tuple[list[dict[str, float]], in
     for index in range(0, len(raw_pairs) - 1, 2):
         pairs.append((raw_pairs[index], raw_pairs[index + 1]))
 
-    raw_segments: list[tuple[float, float, float, float]] = []
+    raw_segments: list[dict[str, Any]] = []
     cursor = 0
     while cursor < len(pairs):
         code, value = pairs[cursor]
@@ -2535,18 +3081,24 @@ def _parse_ascii_dxf_lines(cad_bytes: bytes) -> tuple[list[dict[str, float]], in
         return [], 0, 0, warnings
 
     normalized_segments, width, height = _normalize_cad_segments(raw_segments)
+    layer_summary = _cad_layer_summary(normalized_segments)
+    if layer_summary:
+        warnings.append(f"DXF layer hints detected: {layer_summary}.")
     return normalized_segments, width, height, warnings
 
 
 def _read_dxf_line_entity(
     pairs: list[tuple[str, str]],
     cursor: int,
-) -> tuple[tuple[float, float, float, float] | None, int]:
+) -> tuple[dict[str, Any] | None, int]:
     values: dict[str, float] = {}
+    layer = ""
     while cursor < len(pairs):
         code, value = pairs[cursor]
         if code == "0":
             break
+        if code == "8":
+            layer = value.strip()
         if code in {"10", "20", "11", "21"}:
             try:
                 values[code] = float(value)
@@ -2554,22 +3106,31 @@ def _read_dxf_line_entity(
                 pass
         cursor += 1
     if {"10", "20", "11", "21"}.issubset(values):
-        return (values["10"], values["20"], values["11"], values["21"]), cursor
+        return {
+            "x1": values["10"],
+            "y1": values["20"],
+            "x2": values["11"],
+            "y2": values["21"],
+            "layer": layer,
+        }, cursor
     return None, cursor
 
 
 def _read_dxf_lwpolyline_entity(
     pairs: list[tuple[str, str]],
     cursor: int,
-) -> tuple[list[tuple[float, float, float, float]], int]:
+) -> tuple[list[dict[str, Any]], int]:
     points: list[tuple[float, float]] = []
     pending_x: float | None = None
     closed = False
+    layer = ""
     while cursor < len(pairs):
         code, value = pairs[cursor]
         if code == "0":
             break
-        if code == "70":
+        if code == "8":
+            layer = value.strip()
+        elif code == "70":
             try:
                 closed = bool(int(float(value)) & 1)
             except ValueError:
@@ -2588,19 +3149,41 @@ def _read_dxf_lwpolyline_entity(
         cursor += 1
 
     segments = [
-        (points[index][0], points[index][1], points[index + 1][0], points[index + 1][1])
+        {
+            "x1": points[index][0],
+            "y1": points[index][1],
+            "x2": points[index + 1][0],
+            "y2": points[index + 1][1],
+            "layer": layer,
+        }
         for index in range(len(points) - 1)
     ]
     if closed and len(points) > 2:
-        segments.append((points[-1][0], points[-1][1], points[0][0], points[0][1]))
+        segments.append(
+            {
+                "x1": points[-1][0],
+                "y1": points[-1][1],
+                "x2": points[0][0],
+                "y2": points[0][1],
+                "layer": layer,
+            }
+        )
     return segments, cursor
 
 
 def _normalize_cad_segments(
-    raw_segments: list[tuple[float, float, float, float]],
+    raw_segments: list[Any],
 ) -> tuple[list[dict[str, float]], int, int]:
-    xs = [value for x1, _, x2, _ in raw_segments for value in (x1, x2)]
-    ys = [value for _, y1, _, y2 in raw_segments for value in (y1, y2)]
+    normalized_raw: list[dict[str, Any]] = []
+    for raw in raw_segments:
+        segment = _raw_cad_segment(raw)
+        if segment is not None:
+            normalized_raw.append(segment)
+    if not normalized_raw:
+        return [], 0, 0
+
+    xs = [value for segment in normalized_raw for value in (segment["x1"], segment["x2"])]
+    ys = [value for segment in normalized_raw for value in (segment["y1"], segment["y2"])]
     min_x, max_x = min(xs), max(xs)
     min_y, max_y = min(ys), max(ys)
     margin = 20.0
@@ -2608,7 +3191,11 @@ def _normalize_cad_segments(
     height = int(math.ceil(max(max_y - min_y + margin * 2, 1)))
 
     line_segments: list[dict[str, float]] = []
-    for raw_index, (x1, y1, x2, y2) in enumerate(raw_segments):
+    for raw_index, raw in enumerate(normalized_raw):
+        x1 = float(raw["x1"])
+        y1 = float(raw["y1"])
+        x2 = float(raw["x2"])
+        y2 = float(raw["y2"])
         nx1 = x1 - min_x + margin
         nx2 = x2 - min_x + margin
         ny1 = max_y - y1 + margin
@@ -2616,6 +3203,8 @@ def _normalize_cad_segments(
         length = math.hypot(nx2 - nx1, ny2 - ny1)
         if length <= 0:
             continue
+        layer = str(raw.get("layer") or "").strip()
+        layer_role = _infer_cad_layer_role(layer)
         line_segments.append(
             {
                 "id": f"L_CAD_{len(line_segments) + 1}",
@@ -2625,10 +3214,65 @@ def _normalize_cad_segments(
                 "y2": round(ny2, 2),
                 "length_px": round(length, 2),
                 "angle_deg": round(math.degrees(math.atan2(ny2 - ny1, nx2 - nx1)), 2),
-                "source_entity": f"DXF_{raw_index + 1}",
+                "source_entity": str(raw.get("source_entity") or f"DXF_{raw_index + 1}"),
+                "source_layer": layer,
+                "layer_role": layer_role,
             }
         )
     return line_segments, width, height
+
+
+def _raw_cad_segment(raw: Any) -> dict[str, Any] | None:
+    if isinstance(raw, dict):
+        try:
+            return {
+                "x1": float(raw["x1"]),
+                "y1": float(raw["y1"]),
+                "x2": float(raw["x2"]),
+                "y2": float(raw["y2"]),
+                "layer": str(raw.get("layer") or ""),
+                "source_entity": raw.get("source_entity"),
+            }
+        except (KeyError, TypeError, ValueError):
+            return None
+    if isinstance(raw, tuple) and len(raw) == 4:
+        try:
+            x1, y1, x2, y2 = [float(value) for value in raw]
+        except (TypeError, ValueError):
+            return None
+        return {"x1": x1, "y1": y1, "x2": x2, "y2": y2, "layer": "", "source_entity": None}
+    return None
+
+
+def _infer_cad_layer_role(layer: str) -> str:
+    normalized = re.sub(r"[^0-9A-Za-z가-힣]+", "_", layer).lower()
+    if not normalized:
+        return "unknown"
+    if any(keyword in normalized for keyword in ["pipe", "water", "main", "line", "관", "관로", "배관", "상수"]):
+        return "pipe"
+    if any(keyword in normalized for keyword in ["pump", "펌프"]):
+        return "pump"
+    if any(keyword in normalized for keyword in ["source", "reservoir", "tank", "수원", "저수", "배수지"]):
+        return "source"
+    if any(keyword in normalized for keyword in ["valve", "밸브", "제수"]):
+        return "valve"
+    if any(keyword in normalized for keyword in ["dim", "dimension", "치수"]):
+        return "dimension"
+    if any(keyword in normalized for keyword in ["text", "anno", "label", "주석", "문자"]):
+        return "annotation"
+    return "unknown"
+
+
+def _cad_layer_summary(line_segments: list[dict[str, Any]]) -> str:
+    counts: dict[str, int] = {}
+    for segment in line_segments:
+        layer = str(segment.get("source_layer") or "").strip()
+        role = str(segment.get("layer_role") or "unknown")
+        if not layer:
+            continue
+        key = f"{layer}:{role}"
+        counts[key] = counts.get(key, 0) + 1
+    return ", ".join(f"{key}={count}" for key, count in sorted(counts.items())[:12])
 
 
 def _import_cv2() -> Any:
@@ -2914,6 +3558,8 @@ def _pipes_from_lines(
 ) -> list[dict[str, Any]]:
     pipes: list[dict[str, Any]] = []
     for line in line_segments:
+        if line.get("layer_role") in {"annotation", "dimension"}:
+            continue
         start = _nearest_node(nodes, float(line["x1"]), float(line["y1"]), max_endpoint_distance)
         end = _nearest_node(nodes, float(line["x2"]), float(line["y2"]), max_endpoint_distance)
         if not start or not end or start["id"] == end["id"]:
@@ -2928,6 +3574,8 @@ def _pipes_from_lines(
                 "angle_deg": line["angle_deg"],
                 "polyline_px": line.get("points", []),
                 "geometry_type": line.get("geometry_type", "straight"),
+                "source_layer": line.get("source_layer", ""),
+                "layer_role": line.get("layer_role", "unknown"),
             }
         )
     return pipes
