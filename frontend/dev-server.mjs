@@ -15,8 +15,13 @@ const mime = {
 http
   .createServer((request, response) => {
     let route = decodeURIComponent(request.url.split("?")[0]);
+    if (request.method === "OPTIONS") {
+      response.writeHead(204, corsHeaders());
+      response.end();
+      return;
+    }
     if (request.method === "GET" && route === "/api/health") {
-      sendJson(response, 200, { ok: true });
+      sendJson(response, 200, { ok: true, service: "drawing-recognition-api", supports_cors: true });
       return;
     }
     if (request.method === "POST" && route === "/api/recognize-drawing") {
@@ -39,7 +44,7 @@ http
         response.end("missing");
         return;
       }
-      response.writeHead(200, { "content-type": mime[path.extname(filePath)] || "text/plain;charset=utf-8" });
+      response.writeHead(200, { ...corsHeaders(), "content-type": mime[path.extname(filePath)] || "text/plain;charset=utf-8" });
       response.end(body);
     });
   })
@@ -100,6 +105,15 @@ function runRecognitionProcess(command, body, callback) {
 }
 
 function sendJson(response, status, payload) {
-  response.writeHead(status, { "content-type": "application/json;charset=utf-8" });
+  response.writeHead(status, { ...corsHeaders(), "content-type": "application/json;charset=utf-8" });
   response.end(JSON.stringify(payload));
+}
+
+function corsHeaders() {
+  return {
+    "access-control-allow-origin": "*",
+    "access-control-allow-private-network": "true",
+    "access-control-allow-methods": "GET,HEAD,POST,OPTIONS",
+    "access-control-allow-headers": "content-type",
+  };
 }

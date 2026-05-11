@@ -100,6 +100,11 @@ const state = {
   mapCenter: { x: 560, y: 325 },
   mapViewBox: { x: 0, y: 0, width: 1120, height: 650 },
   draggingNodeId: "",
+  multiSelectedNodes: new Set(),
+  multiSelectedPipes: new Set(),
+  selectionBox: null,
+  selectionMoved: false,
+  bulkMove: null,
   playbackTimer: null,
   playbackSpeed: 1,
   drawingFile: null,
@@ -110,8 +115,10 @@ const state = {
   drawingRecognition: null,
   drawingPipeSamples: [],
   drawingJunctionSamples: [],
+  drawingSourceSamples: [],
   drawingSampleMode: false,
   drawingJunctionMode: false,
+  drawingSourceMode: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -276,6 +283,10 @@ function initControls() {
   $("delete-pipe").addEventListener("click", deleteSelectedPipe);
   $("delete-junction").addEventListener("click", deleteSelectedJunction);
   $("reset-junction-edit").addEventListener("click", resetSelectedJunctionEdit);
+  $("bulk-delete").addEventListener("click", deleteBulkSelection);
+  $("bulk-analyze").addEventListener("click", analyzeBulkSelection);
+  $("bulk-apply-pipes").addEventListener("click", applyBulkPipeProperties);
+  $("bulk-apply-junctions").addEventListener("click", applyBulkJunctionProperties);
   $("add-source-pump").addEventListener("click", addSourcePump);
   $("delete-source-pump").addEventListener("click", deleteSelectedSourcePump);
   $("source-junction").addEventListener("input", () => {
@@ -338,6 +349,8 @@ function initDrawingRecognition() {
   $("clear-pipe-samples").addEventListener("click", clearPipeSamples);
   $("junction-sample-mode").addEventListener("click", toggleJunctionSampleMode);
   $("clear-junction-samples").addEventListener("click", clearJunctionSamples);
+  $("source-sample-mode").addEventListener("click", toggleSourceSampleMode);
+  $("clear-source-samples").addEventListener("click", clearSourceSamples);
   $("download-assets-json").addEventListener("click", () => downloadRecognitionAsset("json"));
   $("download-nodes-csv").addEventListener("click", () => downloadRecognitionAsset("nodes"));
   $("download-pipes-csv").addEventListener("click", () => downloadRecognitionAsset("pipes"));
@@ -357,10 +370,13 @@ function handleDrawingFile(event) {
     state.drawingAssetsApplied = false;
     state.drawingPipeSamples = [];
     state.drawingJunctionSamples = [];
+    state.drawingSourceSamples = [];
     state.drawingSampleMode = false;
     state.drawingJunctionMode = false;
+    state.drawingSourceMode = false;
     syncPipeSampleControls();
     syncJunctionSampleControls();
+    syncSourceSampleControls();
     $("recognized-export-state").textContent = "waiting";
     toggleRecognitionDownloads(false);
     toggleRecognitionApply(false);
@@ -381,10 +397,13 @@ function handleDrawingFile(event) {
     state.drawingAssetsApplied = false;
     state.drawingPipeSamples = [];
     state.drawingJunctionSamples = [];
+    state.drawingSourceSamples = [];
     state.drawingSampleMode = false;
     state.drawingJunctionMode = false;
+    state.drawingSourceMode = false;
     syncPipeSampleControls();
     syncJunctionSampleControls();
+    syncSourceSampleControls();
     drawRecognitionCanvas();
     updateRecognitionStatus("image loaded", "0 pipes / 0 nodes");
     $("recognized-image-size").textContent = `${image.naturalWidth} x ${image.naturalHeight}`;
@@ -404,10 +423,13 @@ function resetDrawingRecognition() {
   state.drawingAssetsApplied = false;
   state.drawingPipeSamples = [];
   state.drawingJunctionSamples = [];
+  state.drawingSourceSamples = [];
   state.drawingSampleMode = false;
   state.drawingJunctionMode = false;
+  state.drawingSourceMode = false;
   syncPipeSampleControls();
   syncJunctionSampleControls();
+  syncSourceSampleControls();
   restoreInitialDashboardNetwork();
   $("drawing-file").value = "";
   $("recognized-pipe-count").textContent = 0;
@@ -434,6 +456,7 @@ function restoreInitialDashboardNetwork() {
   buildDemandIndex();
   state.pipeEdits = new Map();
   state.leakDemands = new Map();
+  clearBulkSelection();
   state.baseNodeGeometry = new Map(state.nodes.map((node) => [node.node_id, baseNodeState(node)]));
   state.originalNodeGeometry = new Map(state.nodes.map((node) => [node.node_id, baseNodeState(node)]));
   state.aging = new Map(state.pipes.map((pipe) => [pipe.pipe_id, agingScore(pipe)]));
@@ -527,6 +550,7 @@ function drawRecognitionCanvas(segments = [], nodes = []) {
   }
   drawPipeSampleMarkers(ctx, offsetX, offsetY, scale);
   drawJunctionSampleMarkers(ctx, offsetX, offsetY, scale);
+  drawSourceSampleMarkers(ctx, offsetX, offsetY, scale);
 }
 
 function drawPipeSampleMarkers(ctx, offsetX, offsetY, scale) {
@@ -553,9 +577,17 @@ function drawPipeSampleMarkers(ctx, offsetX, offsetY, scale) {
 }
 
 function handleDrawingCanvasClick(event) {
-  if ((!state.drawingSampleMode && !state.drawingJunctionMode) || !state.drawingImage) return;
+  if ((!state.drawingSampleMode && !state.drawingJunctionMode && !state.drawingSourceMode) || !state.drawingImage) return;
   const canvasPoint = drawingCanvasToImagePoint(event);
   if (!canvasPoint) return;
+  if (state.drawingSourceMode) {
+    state.drawingSourceSamples.push({ ...canvasPoint, radius_px: 14 });
+    state.drawingSourceSamples = state.drawingSourceSamples.slice(-DRAWING_SAMPLE_LIMIT);
+    syncSourceSampleControls();
+    drawRecognitionCanvas(state.drawingRecognition?.segments || [], state.drawingRecognition?.nodes || []);
+    updateRecognitionStatus("source/pump candidate added", `${state.drawingSourceSamples.length} / ${DRAWING_SAMPLE_LIMIT} sources`);
+    return;
+  }
   if (state.drawingJunctionMode) {
     state.drawingJunctionSamples.push({ ...canvasPoint, radius_px: 12 });
     state.drawingJunctionSamples = state.drawingJunctionSamples.slice(-DRAWING_SAMPLE_LIMIT);
@@ -592,9 +624,13 @@ function drawingCanvasToImagePoint(event) {
 
 function togglePipeSampleMode() {
   state.drawingSampleMode = !state.drawingSampleMode;
-  if (state.drawingSampleMode) state.drawingJunctionMode = false;
+  if (state.drawingSampleMode) {
+    state.drawingJunctionMode = false;
+    state.drawingSourceMode = false;
+  }
   syncPipeSampleControls();
   syncJunctionSampleControls();
+  syncSourceSampleControls();
 }
 
 function clearPipeSamples() {
@@ -638,9 +674,13 @@ function drawJunctionSampleMarkers(ctx, offsetX, offsetY, scale) {
 
 function toggleJunctionSampleMode() {
   state.drawingJunctionMode = !state.drawingJunctionMode;
-  if (state.drawingJunctionMode) state.drawingSampleMode = false;
+  if (state.drawingJunctionMode) {
+    state.drawingSampleMode = false;
+    state.drawingSourceMode = false;
+  }
   syncPipeSampleControls();
   syncJunctionSampleControls();
+  syncSourceSampleControls();
 }
 
 function clearJunctionSamples() {
@@ -657,6 +697,61 @@ function syncJunctionSampleControls() {
   modeButton.classList.toggle("active", state.drawingJunctionMode);
   modeButton.textContent = state.drawingJunctionMode ? "Junction 후보 선택 중" : "Junction 후보 선택";
   countLabel.textContent = `${state.drawingJunctionSamples.length} / ${DRAWING_SAMPLE_LIMIT}`;
+}
+
+function drawSourceSampleMarkers(ctx, offsetX, offsetY, scale) {
+  if (!state.drawingSourceSamples.length) return;
+  ctx.save();
+  ctx.strokeStyle = "#7c3aed";
+  ctx.fillStyle = "rgba(124, 58, 237, 0.14)";
+  ctx.lineWidth = 3;
+  ctx.font = "700 12px Inter, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  state.drawingSourceSamples.forEach((sample, index) => {
+    const x = offsetX + Number(sample.x || 0) * scale;
+    const y = offsetY + Number(sample.y || 0) * scale;
+    const size = Math.max(11, Number(sample.radius_px || 14) * scale);
+    ctx.beginPath();
+    ctx.moveTo(x, y - size);
+    ctx.lineTo(x + size, y);
+    ctx.lineTo(x, y + size);
+    ctx.lineTo(x - size, y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#6d28d9";
+    ctx.fillText(`S${index + 1}`, x, y - size - 10);
+    ctx.fillStyle = "rgba(124, 58, 237, 0.14)";
+  });
+  ctx.restore();
+}
+
+function toggleSourceSampleMode() {
+  state.drawingSourceMode = !state.drawingSourceMode;
+  if (state.drawingSourceMode) {
+    state.drawingSampleMode = false;
+    state.drawingJunctionMode = false;
+  }
+  syncPipeSampleControls();
+  syncJunctionSampleControls();
+  syncSourceSampleControls();
+}
+
+function clearSourceSamples() {
+  state.drawingSourceSamples = [];
+  state.drawingSourceMode = false;
+  syncSourceSampleControls();
+  drawRecognitionCanvas(state.drawingRecognition?.segments || [], state.drawingRecognition?.nodes || []);
+}
+
+function syncSourceSampleControls() {
+  const modeButton = $("source-sample-mode");
+  const countLabel = $("source-sample-count");
+  if (!modeButton || !countLabel) return;
+  modeButton.classList.toggle("active", state.drawingSourceMode);
+  modeButton.textContent = state.drawingSourceMode ? "Source/Pump 후보 선택 중" : "Source/Pump 후보 선택";
+  countLabel.textContent = `${state.drawingSourceSamples.length} / ${DRAWING_SAMPLE_LIMIT}`;
 }
 
 async function analyzeDrawingImage() {
@@ -699,8 +794,9 @@ function renderDrawingRecognition(prebuiltAssets = null) {
   const height = Number(state.drawingRecognition.height || 0);
   $("recognized-image-size").textContent = width && height ? `${width} x ${height}` : state.drawingRecognition.filename || state.drawingFile?.name || "--";
   const lowConfidence = state.drawingRecognition.low_confidence_pipes?.length || 0;
+  const qualityReview = state.drawingRecognition.quality_report?.counts?.review_items || 0;
   $("recognized-export-state").textContent = assets.pipes.length ? "후보 준비" : "확인";
-  updateRecognitionStatus(recognitionReadyLabel(state.drawingRecognition.file_type), `${assets.pipes.length} high-confidence pipes / ${lowConfidence} review`);
+  updateRecognitionStatus(recognitionReadyLabel(state.drawingRecognition.file_type), `${assets.pipes.length} high-confidence pipes / ${lowConfidence} low-confidence / ${qualityReview} quality flags`);
   renderRecognitionTable("recognized-nodes-table", assets.nodes, ["node_id", "x", "y", "node_type", "dma_id"]);
   renderRecognitionTable("recognized-pipes-table", recognitionPipeCandidateRows(assets, state.drawingRecognition), [
     "pipe_id",
@@ -738,6 +834,7 @@ async function recognizeDrawingGeometryWithApi(file) {
       pipe_candidate_samples: state.drawingPipeSamples,
       pipe_style_samples: state.drawingPipeSamples,
       junction_anchor_samples: state.drawingJunctionSamples,
+      source_pump_candidate_samples: state.drawingSourceSamples,
       use_gemini: true,
     }),
   });
@@ -815,12 +912,13 @@ function applyRecognitionAssetsToDashboard(assets) {
   state.nodes = assets.nodes.map((node) => ({ ...node }));
   state.pipes = assets.pipes.map((pipe) => ({ ...pipe }));
   state.reservoirs = assets.reservoirs.map((reservoir) => ({ ...reservoir }));
-  state.pumps = [];
+  state.pumps = (assets.pumps || []).map((pump) => ({ ...pump }));
   state.valves = [];
   state.households = [];
   state.demandByMinute = new Map();
   state.pipeEdits = new Map();
   state.leakDemands = new Map();
+  clearBulkSelection();
   state.baseNodeGeometry = new Map(state.nodes.map((node) => [node.node_id, baseNodeState(node)]));
   state.originalNodeGeometry = new Map(state.nodes.map((node) => [node.node_id, baseNodeState(node)]));
   state.aging = new Map(state.pipes.map((pipe) => [pipe.pipe_id, agingScore(pipe)]));
@@ -979,6 +1077,7 @@ function render() {
   $("min-pressure").textContent = `${minPressure.toFixed(1)} m`;
   $("low-node-count").textContent = junctions.filter((node) => node.pressure < MIN_PRESSURE).length;
 
+  updateBulkSelectionControls();
   syncPipeEditor();
   syncJunctionEditor();
   syncSourceControlLabels();
@@ -1321,6 +1420,8 @@ function renderMap(snapshot) {
   const nodeById = new Map(snapshot.nodes.map((node) => [node.node_id, node]));
   const selectedKind = state.selected?.split(":")[0];
   const selectedId = state.selected?.split(":")[1];
+  const multiNodes = state.multiSelectedNodes || new Set();
+  const multiPipes = state.multiSelectedPipes || new Set();
   $("pipe-tool").classList.toggle("active", selectedKind === "pipe");
   $("junction-tool").classList.toggle("active", selectedKind === "node");
 
@@ -1333,6 +1434,7 @@ function renderMap(snapshot) {
       const flowPoint = pointAlongPolyline(flowPath, 0.58);
       const flowAngle = tangentAngleAtPolyline(flowPath, 0.58);
       const selected = selectedKind === "pipe" && selectedId === pipe.pipe_id;
+      const multiSelected = multiPipes.has(pipe.pipe_id);
       const isLeak = Number(pipe.leakDemand || 0) > 0 || pipe.status === "leak";
       const strokeColor = isLeak ? PIPE_COLORS.leak : PIPE_COLORS[pipe.status];
       const flowWidth = flowStrokeWidth(pipe.flow_lps, pipe.diameter_mm);
@@ -1350,7 +1452,7 @@ function renderMap(snapshot) {
       return `<g>
         ${isLeak ? `<path class="pipe-leak-halo" d="${pathD}" />` : ""}
         ${overpressure ? `<path class="pipe-overpressure-halo" d="${pathD}" />` : ""}
-        <path class="pipe ${isLeak ? "leak-pipe-line" : ""} ${overpressure ? "overpressure-pipe-line" : ""} ${pressureWarning ? "pressure-warning-pipe-line" : ""} ${selected ? "selected-pipe-line" : ""}" d="${pathD}" stroke="${strokeColor}" stroke-width="${strokeWidth}" data-pipe="${pipe.pipe_id}" />
+        <path class="pipe ${isLeak ? "leak-pipe-line" : ""} ${overpressure ? "overpressure-pipe-line" : ""} ${pressureWarning ? "pressure-warning-pipe-line" : ""} ${selected ? "selected-pipe-line" : ""} ${multiSelected ? "multi-selected-pipe-line" : ""}" d="${pathD}" stroke="${strokeColor}" stroke-width="${strokeWidth}" data-pipe="${pipe.pipe_id}" />
         ${pipe.flow_lps > 0.02 ? `<g class="flow-arrow" transform="translate(${flowPoint.x} ${flowPoint.y}) rotate(${flowAngle})">
           <path d="M-9 -5 L4 0 L-9 5 Z" />
         </g>` : ""}
@@ -1366,11 +1468,13 @@ function renderMap(snapshot) {
     .map((node) => {
       const point = project(node);
       const selected = selectedKind === "node" && selectedId === node.node_id;
+      const multiSelected = multiNodes.has(node.node_id);
       const color = node.status === "low" ? "#dc2626" : node.status === "marginal" ? "#d97706" : node.node_type === "reservoir" ? "#0f766e" : "#247a5a";
       const radius = node.node_type === "reservoir" ? 13 : 10;
       const pressure = node.node_type === "reservoir" ? "SRC" : `${node.pressure.toFixed(1)}m`;
       return `<g class="junction-icon" data-node="${node.node_id}" transform="translate(${point.x} ${point.y})">
         ${selected ? `<circle class="selected-ring" r="18" />` : ""}
+        ${multiSelected ? `<circle class="multi-selected-ring" r="${radius + 9}" />` : ""}
         <circle class="junction-body" r="${radius}" fill="${color}" />
         <path d="M0 -6v12M-6 0h12" />
         <text class="node-label" x="13" y="-8">${node.node_id}</text>
@@ -1379,16 +1483,51 @@ function renderMap(snapshot) {
     })
     .join("");
 
-  svg.innerHTML = `${pipeMarkup}${previewMarkup}${nodeMarkup}`;
-  svg.onmousemove = (event) => trackDrawingPreview(event);
-  svg.onclick = (event) => handleMapClick(event);
+  const selectionBoxMarkup = selectionBoxOverlayMarkup();
+  svg.innerHTML = `${pipeMarkup}${previewMarkup}${selectionBoxMarkup}${nodeMarkup}`;
+  svg.onmousemove = (event) => {
+    if (state.selectionBox?.active) {
+      updateMapSelectionBox(event);
+      return;
+    }
+    trackDrawingPreview(event);
+  };
+  svg.onmousedown = (event) => {
+    if (event.button !== 0 || event.target.closest("[data-node], [data-pipe]")) return;
+    startMapSelectionBox(event);
+  };
+  svg.onclick = (event) => {
+    if (state.selectionMoved) {
+      state.selectionMoved = false;
+      return;
+    }
+    if (!state.addMode && !state.pipeDrawMode && !state.sourceDrawMode && bulkSelectionCount() > 0) {
+      clearMapObjectSelection();
+      render();
+      return;
+    }
+    handleMapClick(event);
+  };
   svg.onwheel = (event) => {
     event.preventDefault();
     zoomMap(event.deltaY < 0 ? 1.12 : 0.88, eventToSvgPoint(event));
   };
-  svg.onmouseup = () => stopNodeDrag();
+  svg.onmouseup = (event) => {
+    if (state.selectionBox?.active) {
+      finishMapSelectionBox(event, snapshot, project);
+      return;
+    }
+    stopNodeDrag();
+    stopBulkMove();
+  };
   svg.onmouseleave = () => {
     stopNodeDrag();
+    stopBulkMove();
+    if (state.selectionBox?.active) {
+      state.selectionBox = null;
+      render();
+      return;
+    }
     if (state.addMode && !state.pendingJunction?.locked) {
       state.pendingJunction = null;
       updateDrawReadout();
@@ -1404,6 +1543,14 @@ function renderMap(snapshot) {
     el.addEventListener("click", (event) => {
       if (state.addMode || state.pipeDrawMode || state.sourceDrawMode) return;
       event.stopPropagation();
+      if (event.shiftKey) {
+        toggleMultiPipe(el.dataset.pipe);
+        return;
+      }
+      if (bulkSelectionCount() > 0) {
+        addMultiPipe(el.dataset.pipe);
+        return;
+      }
       selectPipe(el.dataset.pipe);
     }),
   );
@@ -1416,6 +1563,10 @@ function renderMap(snapshot) {
       }
       if (state.addMode || state.sourceDrawMode) return;
       event.stopPropagation();
+      if (event.shiftKey) {
+        toggleMultiNode(el.dataset.node);
+        return;
+      }
       selectNode(el.dataset.node);
     }),
   );
@@ -1423,7 +1574,7 @@ function renderMap(snapshot) {
     el.addEventListener("mousedown", (event) => {
       if (state.addMode || state.pipeDrawMode || state.sourceDrawMode) return;
       event.stopPropagation();
-      startNodeDrag(el.dataset.node);
+      startNodeDrag(el.dataset.node, event);
     }),
   );
   refreshSelectedDetail(snapshot);
@@ -1457,6 +1608,132 @@ function applyMapViewBox(svg, width = 1120, height = 650) {
   $("map-zoom-label").textContent = `${Math.round(zoom * 100)}%`;
 }
 
+function selectionBoxOverlayMarkup() {
+  const box = normalizedSelectionBox();
+  if (!box) return "";
+  return `<rect class="selection-box ${box.mode}" x="${box.x}" y="${box.y}" width="${box.width}" height="${box.height}" />`;
+}
+
+function startMapSelectionBox(event) {
+  if (state.addMode || state.pipeDrawMode || state.sourceDrawMode || state.bulkMove) return;
+  const point = eventToSvgPoint(event);
+  state.selectionBox = { active: true, start: point, current: point };
+  state.selectionMoved = false;
+}
+
+function updateMapSelectionBox(event) {
+  if (!state.selectionBox?.active) return;
+  state.selectionBox.current = eventToSvgPoint(event);
+  const distance = Math.hypot(
+    state.selectionBox.current.x - state.selectionBox.start.x,
+    state.selectionBox.current.y - state.selectionBox.start.y,
+  );
+  state.selectionMoved = distance > 3;
+  render();
+}
+
+function finishMapSelectionBox(event, snapshot, project) {
+  if (!state.selectionBox?.active) return;
+  state.selectionBox.current = eventToSvgPoint(event);
+  const box = normalizedSelectionBox();
+  state.selectionBox = null;
+  if (!box || Math.min(box.width, box.height) < 4) {
+    render();
+    return;
+  }
+  selectObjectsInBox(box, snapshot, project);
+  render();
+}
+
+function normalizedSelectionBox() {
+  const box = state.selectionBox;
+  if (!box?.start || !box?.current) return null;
+  const x = Math.min(box.start.x, box.current.x);
+  const y = Math.min(box.start.y, box.current.y);
+  const width = Math.abs(box.current.x - box.start.x);
+  const height = Math.abs(box.current.y - box.start.y);
+  return {
+    x,
+    y,
+    width,
+    height,
+    x2: x + width,
+    y2: y + height,
+    mode: box.current.x >= box.start.x ? "inside" : "crossing",
+  };
+}
+
+function selectObjectsInBox(box, snapshot, project) {
+  state.multiSelectedNodes = new Set();
+  state.multiSelectedPipes = new Set();
+  const nodeById = new Map(snapshot.nodes.map((node) => [node.node_id, node]));
+  for (const node of snapshot.nodes) {
+    if (node.node_type === "reservoir") continue;
+    const point = project(node);
+    if (pointInRect(point, box)) state.multiSelectedNodes.add(node.node_id);
+  }
+  for (const pipe of snapshot.pipes) {
+    const fromNode = nodeById.get(pipe.from_node);
+    const toNode = nodeById.get(pipe.to_node);
+    if (!fromNode || !toNode) continue;
+    const from = project(fromNode);
+    const to = endpointForPipe(pipe, from, project(toNode));
+    const points = pipeProjectedPath(pipe, from, to, project);
+    const selected = box.mode === "inside" ? polylineInsideRect(points, box) : polylineTouchesRect(points, box);
+    if (selected) state.multiSelectedPipes.add(pipe.pipe_id);
+  }
+  const firstNode = [...state.multiSelectedNodes][0];
+  const firstPipe = [...state.multiSelectedPipes][0];
+  state.selected = firstPipe ? `pipe:${firstPipe}` : firstNode ? `node:${firstNode}` : state.selected;
+  if (firstPipe && $("selected-pipe").querySelector(`option[value="${firstPipe}"]`)) $("selected-pipe").value = firstPipe;
+  if (firstNode && $("selected-junction").querySelector(`option[value="${firstNode}"]`)) $("selected-junction").value = firstNode;
+  updateBulkSelectionControls();
+}
+
+function pointInRect(point, rect) {
+  return point && point.x >= rect.x && point.x <= rect.x2 && point.y >= rect.y && point.y <= rect.y2;
+}
+
+function polylineInsideRect(points, rect) {
+  return points.length > 1 && points.every((point) => pointInRect(point, rect));
+}
+
+function polylineTouchesRect(points, rect) {
+  if (points.some((point) => pointInRect(point, rect))) return true;
+  for (let index = 1; index < points.length; index += 1) {
+    if (segmentIntersectsRect(points[index - 1], points[index], rect)) return true;
+  }
+  return false;
+}
+
+function segmentIntersectsRect(a, b, rect) {
+  const corners = [
+    { x: rect.x, y: rect.y },
+    { x: rect.x2, y: rect.y },
+    { x: rect.x2, y: rect.y2 },
+    { x: rect.x, y: rect.y2 },
+  ];
+  return corners.some((corner, index) => segmentsIntersect(a, b, corner, corners[(index + 1) % corners.length]));
+}
+
+function segmentsIntersect(a, b, c, d) {
+  const cross = (p, q, r) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+  const overlaps = (p, q, r) =>
+    Math.min(p.x, q.x) <= r.x + 0.001 &&
+    r.x <= Math.max(p.x, q.x) + 0.001 &&
+    Math.min(p.y, q.y) <= r.y + 0.001 &&
+    r.y <= Math.max(p.y, q.y) + 0.001;
+  const ab1 = cross(a, b, c);
+  const ab2 = cross(a, b, d);
+  const cd1 = cross(c, d, a);
+  const cd2 = cross(c, d, b);
+  if (Math.abs(ab1) < 0.001 && overlaps(a, b, c)) return true;
+  if (Math.abs(ab2) < 0.001 && overlaps(a, b, d)) return true;
+  if (Math.abs(cd1) < 0.001 && overlaps(c, d, a)) return true;
+  if (Math.abs(cd2) < 0.001 && overlaps(c, d, b)) return true;
+  return ab1 * ab2 <= 0 && cd1 * cd2 <= 0;
+}
+
 function clampMapCenter(center, viewWidth, viewHeight, width, height) {
   if (viewWidth >= width || viewHeight >= height) return { x: width / 2, y: height / 2 };
   return {
@@ -1487,6 +1764,76 @@ function resetMapZoom() {
   state.mapZoom = 1;
   state.mapCenter = { x: 560, y: 325 };
   render();
+}
+
+function toggleMultiPipe(pipeId) {
+  state.multiSelectedPipes = state.multiSelectedPipes || new Set();
+  if (state.multiSelectedPipes.has(pipeId)) state.multiSelectedPipes.delete(pipeId);
+  else state.multiSelectedPipes.add(pipeId);
+  state.selected = `pipe:${pipeId}`;
+  if ($("selected-pipe").querySelector(`option[value="${pipeId}"]`)) $("selected-pipe").value = pipeId;
+  updateBulkSelectionControls();
+  render();
+}
+
+function addMultiPipe(pipeId) {
+  if (!state.pipes.some((pipe) => pipe.pipe_id === pipeId)) return;
+  state.multiSelectedPipes = state.multiSelectedPipes || new Set();
+  state.multiSelectedPipes.add(pipeId);
+  state.selected = `pipe:${pipeId}`;
+  if ($("selected-pipe").querySelector(`option[value="${pipeId}"]`)) $("selected-pipe").value = pipeId;
+  updateBulkSelectionControls();
+  render();
+}
+
+function toggleMultiNode(nodeId) {
+  const node = state.nodes.find((item) => item.node_id === nodeId);
+  if (!node || node.node_type === "reservoir") return;
+  state.multiSelectedNodes = state.multiSelectedNodes || new Set();
+  if (state.multiSelectedNodes.has(nodeId)) state.multiSelectedNodes.delete(nodeId);
+  else state.multiSelectedNodes.add(nodeId);
+  state.selected = `node:${nodeId}`;
+  updateBulkSelectionControls();
+  render();
+}
+
+function clearBulkSelection() {
+  state.multiSelectedNodes = new Set();
+  state.multiSelectedPipes = new Set();
+  state.selectionBox = null;
+  state.bulkMove = null;
+  updateBulkSelectionControls();
+}
+
+function clearMapObjectSelection() {
+  clearBulkSelection();
+  state.selected = null;
+  const detail = $("selection-detail");
+  if (detail) {
+    detail.innerHTML = `<strong>선택 없음</strong><span>지도에서 Pipe 또는 Junction을 선택하세요.</span>`;
+  }
+}
+
+function bulkSelectionCount() {
+  return (state.multiSelectedNodes?.size || 0) + (state.multiSelectedPipes?.size || 0);
+}
+
+function updateBulkSelectionControls() {
+  const nodeCount = state.multiSelectedNodes?.size || 0;
+  const pipeCount = state.multiSelectedPipes?.size || 0;
+  if ($("bulk-selection-count")) $("bulk-selection-count").textContent = `선택 ${nodeCount + pipeCount}개`;
+  if ($("bulk-selection-mode")) $("bulk-selection-mode").textContent = `Junction ${nodeCount}개 · Pipe ${pipeCount}개`;
+}
+
+function nodesInBulkMove() {
+  const ids = new Set(state.multiSelectedNodes || []);
+  for (const pipeId of state.multiSelectedPipes || []) {
+    const pipe = state.pipes.find((item) => item.pipe_id === pipeId);
+    if (!pipe) continue;
+    ids.add(pipe.from_node);
+    ids.add(pipe.to_node);
+  }
+  return [...ids].filter((nodeId) => state.nodes.some((node) => node.node_id === nodeId));
 }
 
 function projectNode(node, frame = state.mapFrame) {
@@ -1558,6 +1905,10 @@ function sourcePreviewMarkup(project, snapshot) {
 }
 
 function trackDrawingPreview(event) {
+  if (state.bulkMove) {
+    dragBulkSelection(event);
+    return;
+  }
   if (state.draggingNodeId) {
     dragSelectedNode(event);
     return;
@@ -1573,9 +1924,13 @@ function trackDrawingPreview(event) {
   trackPendingJunction(event);
 }
 
-function startNodeDrag(nodeId) {
+function startNodeDrag(nodeId, event = null) {
   const node = state.nodes.find((item) => item.node_id === nodeId);
   if (!node) return;
+  if (bulkSelectionCount() > 1 && nodesInBulkMove().includes(nodeId)) {
+    startBulkMove(event);
+    return;
+  }
   state.draggingNodeId = nodeId;
   state.selected = `node:${nodeId}`;
   if ($("selected-junction").querySelector(`option[value="${nodeId}"]`)) $("selected-junction").value = nodeId;
@@ -1596,6 +1951,41 @@ function dragSelectedNode(event) {
 
 function stopNodeDrag() {
   state.draggingNodeId = "";
+}
+
+function startBulkMove(event) {
+  if (!event || !state.mapFrame) return;
+  const nodeIds = nodesInBulkMove();
+  if (!nodeIds.length) return;
+  state.bulkMove = {
+    startPoint: unprojectPoint(eventToSvgPoint(event)),
+    originals: new Map(
+      nodeIds
+        .map((nodeId) => state.nodes.find((node) => node.node_id === nodeId))
+        .filter(Boolean)
+        .map((node) => [node.node_id, { x: Number(node.x || 0), y: Number(node.y || 0) }]),
+    ),
+  };
+}
+
+function dragBulkSelection(event) {
+  if (!state.bulkMove) return;
+  state.selectionMoved = true;
+  const point = unprojectPoint(eventToSvgPoint(event));
+  const dx = point.x - state.bulkMove.startPoint.x;
+  const dy = point.y - state.bulkMove.startPoint.y;
+  for (const [nodeId, original] of state.bulkMove.originals) {
+    const node = state.nodes.find((item) => item.node_id === nodeId);
+    if (!node) continue;
+    node.x = original.x + dx;
+    node.y = original.y + dy;
+    state.baseNodeGeometry.set(node.node_id, baseNodeState(node));
+  }
+  render();
+}
+
+function stopBulkMove() {
+  state.bulkMove = null;
 }
 
 function trackPendingJunction(event) {
@@ -1904,6 +2294,113 @@ function deleteSelectedJunction() {
   render();
 }
 
+function deleteBulkSelection() {
+  const selectedNodes = new Set(state.multiSelectedNodes || []);
+  const selectedPipes = new Set(state.multiSelectedPipes || []);
+  if (!selectedNodes.size && !selectedPipes.size) {
+    $("selection-detail").innerHTML = `<strong>다중 선택 없음</strong><span>지도에서 드래그하거나 Shift+클릭으로 객체를 선택하세요.</span>`;
+    return;
+  }
+  const sourceIds = new Set(state.nodes.filter((node) => node.node_type === "reservoir").map((node) => node.node_id));
+  const junctionIds = new Set(state.nodes.filter((node) => node.node_type !== "reservoir").map((node) => node.node_id));
+  const removingSources = [...selectedNodes].filter((id) => sourceIds.has(id));
+  const removingJunctions = [...selectedNodes].filter((id) => junctionIds.has(id));
+  if (removingSources.length >= sourceIds.size && sourceIds.size > 0) {
+    window.alert("Source/Pump가 하나만 있습니다.");
+    return;
+  }
+  if (removingJunctions.length >= junctionIds.size && junctionIds.size > 0) {
+    window.alert("마지막 Junction은 삭제할 수 없습니다.");
+    return;
+  }
+  const connectedPipeIds = new Set(
+    state.pipes
+      .filter((pipe) => selectedNodes.has(pipe.from_node) || selectedNodes.has(pipe.to_node))
+      .map((pipe) => pipe.pipe_id),
+  );
+  for (const pipeId of selectedPipes) connectedPipeIds.add(pipeId);
+  const message = `선택 Junction ${selectedNodes.size}개와 Pipe ${connectedPipeIds.size}개를 삭제할까요?`;
+  if (!window.confirm(message)) return;
+
+  state.nodes = state.nodes.filter((node) => !selectedNodes.has(node.node_id));
+  state.reservoirs = state.reservoirs.filter((reservoir) => !selectedNodes.has(reservoir.node_id));
+  state.pumps = state.pumps.filter((pump) => !selectedNodes.has(pump.from_node) && !selectedNodes.has(pump.to_node));
+  state.pipes = state.pipes.filter((pipe) => !connectedPipeIds.has(pipe.pipe_id));
+  state.valves = state.valves.filter((valve) => !connectedPipeIds.has(valve.pipe_id));
+  for (const nodeId of selectedNodes) {
+    state.baseNodeGeometry.delete(nodeId);
+    state.originalNodeGeometry.delete(nodeId);
+  }
+  for (const pipeId of connectedPipeIds) {
+    state.pipeEdits.delete(pipeId);
+    state.aging.delete(pipeId);
+    state.leakDemands.delete(pipeId);
+  }
+  clearBulkSelection();
+  refreshAssetOptions();
+  state.selected = state.pipes[0] ? `pipe:${state.pipes[0].pipe_id}` : `node:${firstJunctionId()}`;
+  render();
+}
+
+function applyBulkPipeProperties() {
+  const pipeIds = [...(state.multiSelectedPipes || [])].filter((pipeId) => state.pipes.some((pipe) => pipe.pipe_id === pipeId));
+  if (!pipeIds.length) return;
+  const diameter = Number($("bulk-pipe-diameter").value || 150);
+  const material = $("bulk-pipe-material").value || "PVC";
+  for (const pipeId of pipeIds) {
+    const pipe = state.pipes.find((item) => item.pipe_id === pipeId);
+    const current = pipe ? pipeDesign(pipe) : {};
+    state.pipeEdits.set(pipeId, {
+      ...current,
+      diameter_mm: diameter,
+      material,
+    });
+  }
+  render();
+  $("selection-detail").innerHTML = `<strong>선택 Pipe 일괄 변경</strong><span>${pipeIds.length}개 Pipe에 D${diameter} · ${material}을 적용했습니다.</span>`;
+}
+
+function applyBulkJunctionProperties() {
+  const nodeIds = [...(state.multiSelectedNodes || [])].filter((nodeId) =>
+    state.nodes.some((node) => node.node_id === nodeId && node.node_type !== "reservoir"),
+  );
+  if (!nodeIds.length) return;
+  const elevation = Number($("bulk-junction-elevation").value || 30);
+  const demand = Number($("bulk-junction-demand").value || 0.8);
+  const dma = $("bulk-junction-dma").value.trim() || "IMG_IMPORT";
+  for (const nodeId of nodeIds) {
+    const node = state.nodes.find((item) => item.node_id === nodeId);
+    if (!node) continue;
+    node.elevation_m = elevation;
+    node.base_demand_lps = demand;
+    node.dma_id = dma;
+    state.baseNodeGeometry.set(node.node_id, baseNodeState(node));
+  }
+  render();
+  $("selection-detail").innerHTML = `<strong>선택 Junction 일괄 변경</strong><span>${nodeIds.length}개 Junction에 표고 ${elevation.toFixed(1)} m · 수요 ${demand.toFixed(2)} L/s · ${dma}를 적용했습니다.</span>`;
+}
+
+function analyzeBulkSelection() {
+  const snapshot = computeSnapshot();
+  const nodeIds = new Set(state.multiSelectedNodes || []);
+  const pipeIds = new Set(state.multiSelectedPipes || []);
+  const nodes = snapshot.nodes.filter((node) => nodeIds.has(node.node_id));
+  const pipes = snapshot.pipes.filter((pipe) => pipeIds.has(pipe.pipe_id));
+  if (!nodes.length && !pipes.length) {
+    $("selection-detail").innerHTML = `<strong>선택 구역 없음</strong><span>분석할 Junction 또는 Pipe를 먼저 선택하세요.</span>`;
+    return;
+  }
+  const lowNodes = nodes.filter((node) => node.node_type !== "reservoir" && node.pressure < MIN_PRESSURE);
+  const avgPressure = nodes.length ? nodes.reduce((sum, node) => sum + Number(node.pressure || 0), 0) / nodes.length : 0;
+  const highRiskPipe = pipes
+    .map((pipe) => ({ pipe, score: state.aging.get(pipe.pipe_id) || 0 }))
+    .sort((a, b) => b.score - a.score)[0];
+  $("selection-detail").innerHTML = `<strong>선택 구역 분석</strong>
+    <span>Junction ${nodes.length}개 · Pipe ${pipes.length}개</span>
+    <span>평균 압력 ${avgPressure.toFixed(1)} m · 저압 Junction ${lowNodes.length}개</span>
+    <span>최고 위험 Pipe ${highRiskPipe ? `${highRiskPipe.pipe.pipe_id} (${highRiskPipe.score.toFixed(2)})` : "없음"}</span>`;
+}
+
 function addSourcePumpImmediateLegacy() {
   const targetId = $("source-connect-junction").value || firstJunctionId();
   const target = state.nodes.find((node) => node.node_id === targetId && node.node_type !== "reservoir");
@@ -2111,14 +2608,16 @@ function deleteSelectedSourcePump() {
   }
   const sources = state.nodes.filter((node) => node.node_type === "reservoir");
   if (sources.length <= 1) {
-    $("source-readout").textContent = "마지막 Source/Pump는 삭제할 수 없습니다. 새 Source/Pump를 먼저 추가하세요.";
+    window.alert("Source/Pump가 하나만 있습니다.");
+    $("source-readout").textContent = "Source/Pump가 하나만 있습니다. 새 Source/Pump를 먼저 추가하세요.";
     return;
   }
   const connectedPipes = state.pipes.filter((pipe) => pipe.from_node === sourceId || pipe.to_node === sourceId);
   const connectedPipeIds = new Set(connectedPipes.map((pipe) => pipe.pipe_id));
+  const connectedPump = sourcePumpFor(sourceId);
   const message = connectedPipes.length
-    ? `${sourceId} Source/Pump와 연결된 Pipe ${connectedPipes.length}개도 함께 삭제됩니다. 계속할까요?`
-    : `${sourceId} Source/Pump를 삭제할까요?`;
+    ? `${sourceId} Source/Pump와 연결된 Pipe ${connectedPipes.length}개도 함께 삭제됩니다.\n${connectedPump ? "Pump도 같이 삭제됩니다.\n" : ""}계속할까요?`
+    : `${sourceId} Source/Pump를 삭제할까요?${connectedPump ? "\nPump도 같이 삭제됩니다." : ""}`;
   if (!window.confirm(message)) return;
 
   state.nodes = state.nodes.filter((node) => node.node_id !== sourceId);
@@ -2236,6 +2735,14 @@ function endpointForPipe(pipe, from, originalTo) {
 }
 
 function refreshSelectedDetail(snapshot) {
+  if (bulkSelectionCount() > 1) {
+    const nodeCount = state.multiSelectedNodes?.size || 0;
+    const pipeCount = state.multiSelectedPipes?.size || 0;
+    $("selection-detail").innerHTML = `<strong>다중 선택</strong>
+      <span>Junction ${nodeCount}개 · Pipe ${pipeCount}개</span>
+      <span>선택된 Junction을 드래그하면 연결된 선택 객체를 함께 이동합니다.</span>`;
+    return;
+  }
   if (!state.selected) return;
   const [kind, id] = state.selected.split(":");
   if (kind === "pipe") showPipeDetail(id, snapshot);
@@ -2794,6 +3301,7 @@ function resetSelectedPipeEdit() {
 }
 
 function selectPipe(pipeId) {
+  clearBulkSelection();
   state.selected = `pipe:${pipeId}`;
   state.editorTab = "pipe";
   $("selected-pipe").value = pipeId;
@@ -2802,6 +3310,7 @@ function selectPipe(pipeId) {
 }
 
 function selectNode(nodeId) {
+  clearBulkSelection();
   const node = state.nodes.find((item) => item.node_id === nodeId);
   if (node?.node_type === "reservoir") {
     state.selected = `node:${nodeId}`;

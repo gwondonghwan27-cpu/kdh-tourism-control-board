@@ -12,6 +12,8 @@ from aging_water_network.vision.drawing_recognition import (
     call_gemini_vision,
     detect_drawing_file_type,
     recognize_drawing_file,
+    semantic_samples_from_gemini,
+    validate_recognition_quality,
 )
 
 
@@ -29,6 +31,61 @@ def test_gemini_without_api_key_returns_configuration_error(monkeypatch):
 
     assert result.error
     assert "GEMINI_API_KEY" in result.error
+
+
+def test_semantic_gemini_hints_convert_to_opencv_samples():
+    parsed = {
+        "schema_version": "water_network_extract_v1",
+        "drawing_type": "water_network",
+        "junctions": [
+            {
+                "label": "J-1",
+                "asset_type": "junction",
+                "bbox": {"x1": 90, "y1": 40, "x2": 110, "y2": 60},
+                "confidence": 0.83,
+                "source_text": "J-1",
+                "is_inferred": False,
+                "needs_review": False,
+            }
+        ],
+        "pipes": [
+            {
+                "label": "P-1",
+                "from_label": "J-1",
+                "to_label": "J-2",
+                "bbox": {"x1": 120, "y1": 55, "x2": 240, "y2": 75},
+                "confidence": 0.7,
+                "source_text": "D150",
+                "is_inferred": False,
+                "needs_review": False,
+            }
+        ],
+    }
+
+    samples = semantic_samples_from_gemini(parsed, image_width=400, image_height=300)
+
+    assert samples["junction_anchor_samples"] == [
+        {"x": 100.0, "y": 50.0, "radius_px": 10.0, "source": "gemini_semantic_bbox", "confidence": 0.83}
+    ]
+    assert samples["pipe_candidate_samples"][0]["x"] == 180.0
+    assert samples["pipe_candidate_samples"][0]["source"] == "gemini_semantic_bbox"
+
+
+def test_validate_recognition_quality_flags_review_risks():
+    nodes = [{"id": "N1", "x": 10, "y": 10}, {"id": "N2", "x": 80, "y": 10}, {"id": "N3", "x": 180, "y": 10}]
+    pipes = [
+        {"id": "P1", "from_node": "N1", "to_node": "N2", "length_px": 70, "confidence": 0.91},
+        {"id": "P2", "from_node": "N1", "to_node": "N4", "length_px": 35, "confidence": 0.4},
+    ]
+
+    report = validate_recognition_quality(nodes, pipes, image_width=120, image_height=90)
+    reasons = {item["reason"] for item in report["review_items"]}
+
+    assert report["counts"]["review_pipes"] == 1
+    assert "low_confidence" in reasons
+    assert "endpoint_missing_node" in reasons
+    assert "coordinate_out_of_bounds" in reasons
+    assert report["can_auto_apply"] is False
 
 
 def test_detect_drawing_file_type_routes_images_and_cad_files():
@@ -80,6 +137,30 @@ def test_recognition_result_exports_dashboard_assets():
     assert {"node_id", "x", "y", "node_type"}.issubset(assets.nodes[0])
     assert {"pipe_id", "from_node", "to_node", "length_m", "diameter_mm"}.issubset(assets.pipes[0])
     assert assets.reservoirs
+
+
+def test_source_pump_candidate_sets_dashboard_source_location():
+    cv2 = pytest.importorskip("cv2")
+    canvas = np.full((180, 280, 3), 255, dtype=np.uint8)
+    cv2.line(canvas, (80, 70), (220, 70), (0, 0, 0), 4)
+    cv2.circle(canvas, (80, 70), 8, (0, 0, 0), 2)
+    cv2.circle(canvas, (220, 70), 8, (0, 0, 0), 2)
+    ok, encoded = cv2.imencode(".png", canvas)
+    assert ok
+
+    result = analyze_drawing_image(
+        encoded.tobytes(),
+        "image/png",
+        min_line_length=25,
+        source_pump_candidate_samples=[{"x": 30, "y": 70}],
+    )
+    assets = build_dashboard_assets_from_recognition(result)
+    source_node = next(node for node in assets.nodes if node["node_id"] == "R_IMG_1")
+
+    assert source_node["x"] == 30
+    assert source_node["node_type"] == "reservoir"
+    assert assets.pumps
+    assert assets.pumps[0]["from_node"] == "R_IMG_1"
 
 
 def test_grayscale_pipe_drawing_uses_color_agnostic_path_extraction():
@@ -145,6 +226,49 @@ EOF
     assert len(result.pipe_candidates) == 2
     assert assets.nodes
     assert assets.pipes
+
+
+def test_dxf_layer_roles_keep_annotations_out_of_pipe_candidates():
+    dxf = b"""0
+SECTION
+2
+ENTITIES
+0
+LINE
+8
+WATER_PIPE
+10
+0
+20
+0
+11
+100
+21
+0
+0
+LINE
+8
+TEXT_LABEL
+10
+0
+20
+50
+11
+100
+21
+50
+0
+ENDSEC
+0
+EOF
+"""
+
+    result = analyze_drawing_cad(dxf, filename="network.dxf")
+
+    assert {segment["layer_role"] for segment in result.line_segments} == {"pipe", "annotation"}
+    assert len(result.pipe_candidates) == 1
+    assert result.pipe_candidates[0]["source_layer"] == "WATER_PIPE"
+    assert any("DXF layer hints detected" in warning for warning in result.warnings)
 
 
 def test_dwg_cad_route_is_detected_without_using_image_decoder():

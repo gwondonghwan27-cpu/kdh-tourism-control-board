@@ -23,6 +23,8 @@ from aging_water_network.vision import (  # noqa: E402
     build_dashboard_assets_from_recognition,
     call_gemini_vision,
     recognize_drawing_file,
+    semantic_samples_from_gemini,
+    validate_recognition_quality,
 )
 
 
@@ -39,14 +41,14 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
     def do_HEAD(self) -> None:  # noqa: N802 - stdlib hook
         route = unquote(urlparse(self.path).path)
         if route == "/api/health":
-            self._send_json({"ok": True}, include_body=False)
+            self._send_json(_health_payload(), include_body=False)
             return
         self._serve_static(route, include_body=False)
 
     def do_GET(self) -> None:  # noqa: N802 - stdlib hook
         route = unquote(urlparse(self.path).path)
         if route == "/api/health":
-            self._send_json({"ok": True})
+            self._send_json(_health_payload())
             return
         self._serve_static(route)
 
@@ -119,31 +121,81 @@ def _recognize_drawing(request: dict[str, Any]) -> dict[str, Any]:
     file_bytes = base64.b64decode(request.get("file_base64") or request.get("image_base64") or "")
     mime_type = str(request.get("mime_type") or "")
     filename = str(request.get("filename") or "")
+    pipe_candidate_samples = (
+        request.get("pipe_style_samples")
+        if isinstance(request.get("pipe_style_samples"), list)
+        else request.get("pipe_candidate_samples")
+        if isinstance(request.get("pipe_candidate_samples"), list)
+        else None
+    )
+    junction_anchor_samples = request.get("junction_anchor_samples") if isinstance(request.get("junction_anchor_samples"), list) else None
+    source_pump_candidate_samples = (
+        request.get("source_pump_candidate_samples")
+        if isinstance(request.get("source_pump_candidate_samples"), list)
+        else None
+    )
     drawing_file_type, recognition_result = recognize_drawing_file(
         file_bytes,
         filename=filename,
         mime_type=mime_type,
         min_line_length=int(float(request.get("min_line_length") or 45)),
         merge_tolerance_px=float(request.get("merge_tolerance_px") or 18),
-        pipe_style_samples=(
-            request.get("pipe_style_samples")
-            if isinstance(request.get("pipe_style_samples"), list)
-            else request.get("pipe_candidate_samples")
-            if isinstance(request.get("pipe_candidate_samples"), list)
-            else None
-        ),
-        junction_anchor_samples=request.get("junction_anchor_samples") if isinstance(request.get("junction_anchor_samples"), list) else None,
+        pipe_style_samples=pipe_candidate_samples,
+        junction_anchor_samples=junction_anchor_samples,
+        source_pump_candidate_samples=source_pump_candidate_samples,
     )
+    gemini_result = None
+    fusion_samples: dict[str, Any] = {}
+    if drawing_file_type == "image" and bool(request.get("use_gemini", True)):
+        gemini_result = call_gemini_vision(file_bytes, _image_mime_for_request(filename, mime_type))
+        fusion_samples = semantic_samples_from_gemini(
+            gemini_result.parsed_json if gemini_result else None,
+            image_width=recognition_result.width,
+            image_height=recognition_result.height,
+        )
+        source_pump_candidate_samples = [
+            *(source_pump_candidate_samples or []),
+            *fusion_samples.get("source_pump_candidate_samples", []),
+        ]
+        if (
+            not gemini_result.error
+            and bool(request.get("use_gemini_fusion", True))
+            and (
+                fusion_samples.get("junction_anchor_samples")
+                or fusion_samples.get("pipe_candidate_samples")
+            )
+        ):
+            combined_junction_samples = [
+                *(junction_anchor_samples or []),
+                *fusion_samples.get("junction_anchor_samples", []),
+            ]
+            combined_pipe_samples = [
+                *(pipe_candidate_samples or []),
+                *fusion_samples.get("pipe_candidate_samples", []),
+            ]
+            combined_source_samples = [
+                *(source_pump_candidate_samples or []),
+            ]
+            drawing_file_type, recognition_result = recognize_drawing_file(
+                file_bytes,
+                filename=filename,
+                mime_type=mime_type,
+                min_line_length=int(float(request.get("min_line_length") or 45)),
+                merge_tolerance_px=float(request.get("merge_tolerance_px") or 18),
+                pipe_candidate_samples=combined_pipe_samples,
+                junction_anchor_samples=combined_junction_samples,
+                source_pump_candidate_samples=combined_source_samples,
+            )
+            source_pump_candidate_samples = combined_source_samples
+
     assets = build_dashboard_assets_from_recognition(
         recognition_result,
         scale_m_per_px=float(request.get("scale_m_per_px") or 1),
         default_diameter_mm=float(request.get("default_diameter_mm") or 150),
         default_material=str(request.get("default_material") or "PVC"),
         include_virtual_reservoir=True,
+        source_pump_candidate_samples=source_pump_candidate_samples,
     )
-    gemini_result = None
-    if drawing_file_type == "image" and bool(request.get("use_gemini", True)):
-        gemini_result = call_gemini_vision(file_bytes, _image_mime_for_request(filename, mime_type))
 
     payload = json.loads(recognition_result.binary_payload.decode("utf-8"))
     semantic_hints = payload.get("semantic_hints") or {}
@@ -152,7 +204,15 @@ def _recognize_drawing(request: dict[str, Any]) -> dict[str, Any]:
             "source": "gemini",
             "parsed_json": gemini_result.parsed_json,
             "error": gemini_result.error,
+            "fusion_samples": fusion_samples,
         }
+    quality_report = payload.get("quality_report") or validate_recognition_quality(
+        payload.get("nodes", []),
+        payload.get("pipes", []),
+        image_width=recognition_result.width,
+        image_height=recognition_result.height,
+        semantic_hints=gemini_result.parsed_json if gemini_result else None,
+    )
     return {
         "recognition": {
             "file_type": drawing_file_type,
@@ -168,11 +228,20 @@ def _recognize_drawing(request: dict[str, Any]) -> dict[str, Any]:
             "pipe_candidates": recognition_result.pipe_candidates,
             "low_confidence_pipes": payload.get("low_confidence_pipes", []),
             "semantic_hints": semantic_hints,
+            "quality_report": quality_report,
             "summary": recognition_result.summary(),
             "gemini": _gemini_to_dict(gemini_result),
             "warnings": payload.get("cad_warnings", []) + payload.get("pdf_warnings", []) + assets.warnings,
         },
         "assets": assets.to_dict(),
+    }
+
+
+def _health_payload() -> dict[str, Any]:
+    return {
+        "ok": True,
+        "service": "drawing-recognition-api",
+        "supports_cors": True,
     }
 
 

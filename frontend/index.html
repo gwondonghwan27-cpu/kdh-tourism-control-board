@@ -79,6 +79,9 @@
             <button id="pipe-sample-mode" class="text-button" type="button">Pipe 후보 선택</button>
             <button id="clear-pipe-samples" class="text-button" type="button">Pipe 후보 초기화</button>
             <span id="pipe-sample-count" class="sample-count">0 / 100</span>
+            <button id="source-sample-mode" class="text-button" type="button">Source/Pump 후보 선택</button>
+            <button id="clear-source-samples" class="text-button" type="button">Source/Pump 후보 초기화</button>
+            <span id="source-sample-count" class="sample-count">0 / 100</span>
           </div>
         </section>
         <p class="recognition-format-guidance">[ .JPG, .PNG 도면은 Junction 후보를 우선 사용하고, 표시되지 않은 관은 Pipe 후보 선택으로 보강해 주십시오. ]</p>
@@ -222,6 +225,44 @@
         <button id="delete-junction" class="text-button danger-button" type="button">Junction 삭제</button>
         <button id="draw-pipe-mode" class="primary-button" type="button">Pipe 추가</button>
         <button id="delete-pipe" class="text-button danger-button" type="button">Pipe 삭제</button>
+      </section>
+
+      <section class="batch-toolbar" aria-label="cad style multi selection tools">
+        <div>
+          <strong id="bulk-selection-count">선택 0개</strong>
+          <span id="bulk-selection-mode">왼쪽→오른쪽: 포함 선택 · 오른쪽→왼쪽: 교차 선택</span>
+        </div>
+        <button id="bulk-delete" class="text-button danger-button" type="button">선택 객체 일괄 삭제</button>
+        <button id="bulk-analyze" class="text-button" type="button">선택 구역 분석</button>
+        <label>
+          Pipe 관경
+          <input id="bulk-pipe-diameter" type="number" min="80" max="1200" step="10" value="150" />
+        </label>
+        <label>
+          Pipe 재질
+          <select id="bulk-pipe-material">
+            <option value="PVC">PVC</option>
+            <option value="HDPE">HDPE</option>
+            <option value="ductile_iron">ductile iron</option>
+            <option value="steel">steel</option>
+            <option value="cast_iron">cast iron</option>
+            <option value="concrete">concrete</option>
+          </select>
+        </label>
+        <button id="bulk-apply-pipes" class="primary-button" type="button">선택 Pipe 일괄 변경</button>
+        <label>
+          Junction 표고
+          <input id="bulk-junction-elevation" type="number" min="0" max="120" step="0.5" value="30" />
+        </label>
+        <label>
+          Junction 수요
+          <input id="bulk-junction-demand" type="number" min="0" max="20" step="0.05" value="0.8" />
+        </label>
+        <label>
+          Junction DMA
+          <input id="bulk-junction-dma" type="text" value="IMG_IMPORT" />
+        </label>
+        <button id="bulk-apply-junctions" class="primary-button" type="button">선택 Junction 일괄 변경</button>
       </section>
 
       <section class="metric-grid" aria-label="overview metrics">

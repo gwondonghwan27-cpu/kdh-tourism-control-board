@@ -140,7 +140,7 @@ def render_streamlit_recognition_controls(st: Any) -> dict[str, Any] | None:
 def ensure_local_recognition_api(st: Any) -> str | None:
     """Start the local dashboard API so the embedded canvas can recognize drawings."""
 
-    for port in range(5173, 5180):
+    for port in range(5181, 5190):
         api_base = f"http://127.0.0.1:{port}"
         if is_recognition_api_ready(api_base):
             st.sidebar.caption(f"Canvas recognition API: {api_base}")
@@ -182,8 +182,14 @@ def is_port_available(host: str, port: int) -> bool:
 def is_recognition_api_ready(api_base: str) -> bool:
     try:
         with urllib.request.urlopen(f"{api_base}/api/health", timeout=0.5) as response:
-            return response.status == 200
-    except OSError:
+            payload = json.loads(response.read().decode("utf-8") or "{}")
+            return (
+                response.status == 200
+                and payload.get("ok") is True
+                and payload.get("service") == "drawing-recognition-api"
+                and payload.get("supports_cors") is True
+            )
+    except (OSError, json.JSONDecodeError):
         return False
 
 
