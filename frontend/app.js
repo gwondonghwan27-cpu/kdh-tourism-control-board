@@ -3,6 +3,9 @@ const MIN_PRESSURE = 15;
 const MARGINAL_PRESSURE = 20;
 const CURRENT_YEAR = 2026;
 const DRAWING_SAMPLE_LIMIT = 100;
+const MAP_ZOOM_MIN = 0.6;
+const MAP_ZOOM_MAX = 6;
+const MAP_WHEEL_ZOOM_SENSITIVITY = 0.0014;
 
 const PIPE_COLORS = {
   ok: "#2563eb",
@@ -268,8 +271,8 @@ function initControls() {
     button.addEventListener("click", () => setEditorTab(button.dataset.editorTab));
   });
 
-  $("map-zoom-in").addEventListener("click", () => zoomMap(1.25));
-  $("map-zoom-out").addEventListener("click", () => zoomMap(0.8));
+  $("map-zoom-in").addEventListener("click", () => zoomMap(1.2));
+  $("map-zoom-out").addEventListener("click", () => zoomMap(1 / 1.2));
   $("map-zoom-reset").addEventListener("click", resetMapZoom);
   $("play-toggle").addEventListener("click", togglePlayback);
   $("reset-scenario").addEventListener("click", resetScenario);
@@ -907,12 +910,13 @@ function fileToBase64(file) {
 }
 
 function applyRecognitionAssetsToDashboard(assets) {
-  if (!assets.nodes.length || !assets.pipes.length) return;
+  const normalizedAssets = normalizeDashboardAssetsForEditing(assets);
+  if (!normalizedAssets.nodes.length || !normalizedAssets.pipes.length) return;
   state.drawingAssetsApplied = true;
-  state.nodes = assets.nodes.map((node) => ({ ...node }));
-  state.pipes = assets.pipes.map((pipe) => ({ ...pipe }));
-  state.reservoirs = assets.reservoirs.map((reservoir) => ({ ...reservoir }));
-  state.pumps = (assets.pumps || []).map((pump) => ({ ...pump }));
+  state.nodes = normalizedAssets.nodes;
+  state.pipes = normalizedAssets.pipes;
+  state.reservoirs = normalizedAssets.reservoirs;
+  state.pumps = normalizedAssets.pumps;
   state.valves = [];
   state.households = [];
   state.demandByMinute = new Map();
@@ -946,6 +950,127 @@ function applyRecognitionAssetsToDashboard(assets) {
   $("recognized-export-state").textContent = "관망맵 반영";
   updateDrawReadout("도면 인식 관망이 관망맵에 실시간 반영되었습니다. Pipe/Junction 패널에서 세부 값을 편집하세요.");
   render();
+}
+
+function normalizeDashboardAssetsForEditing(assets) {
+  const sourceNodes = Array.isArray(assets?.nodes) ? assets.nodes : [];
+  const sourcePipes = Array.isArray(assets?.pipes) ? assets.pipes : [];
+  const nodes = sourceNodes
+    .map((node, index) => ({
+      node_id: String(node.node_id || node.id || `J_IMG_${index + 1}`),
+      x: Number(node.x ?? index * 30),
+      y: Number(node.y ?? 0),
+      elevation_m: Number(node.elevation_m ?? 30),
+      base_demand_lps: Number(node.base_demand_lps ?? (node.node_type === "reservoir" ? 0 : 0.8)),
+      node_type: node.node_type === "reservoir" ? "reservoir" : "junction",
+      dma_id: String(node.dma_id || (node.node_type === "reservoir" ? "SOURCE" : "IMG_IMPORT")),
+    }))
+    .filter((node) => node.node_id && Number.isFinite(node.x) && Number.isFinite(node.y));
+  const nodeIds = new Set(nodes.map((node) => node.node_id));
+  const pipes = sourcePipes
+    .map((pipe, index) => ({
+      ...pipe,
+      pipe_id: String(pipe.pipe_id || pipe.id || `P_IMG_${index + 1}`),
+      from_node: String(pipe.from_node || ""),
+      to_node: String(pipe.to_node || ""),
+      length_m: Number(pipe.length_m ?? 100),
+      diameter_mm: Number(pipe.diameter_mm ?? 150),
+      roughness_c: Number(pipe.roughness_c ?? 100),
+      minor_loss_k: Number(pipe.minor_loss_k ?? 0),
+      material: String(pipe.material || "PVC"),
+      service_type: String(pipe.service_type || "distribution"),
+      install_year: Number(pipe.install_year ?? 2026),
+      bend_count: Number(pipe.bend_count ?? 0),
+      bend_angle_deg: Number(pipe.bend_angle_deg ?? 0),
+      valve_count: Number(pipe.valve_count ?? 0),
+      repair_count: Number(pipe.repair_count ?? 0),
+      leak_history_count: Number(pipe.leak_history_count ?? 0),
+      burst_history_count: Number(pipe.burst_history_count ?? 0),
+      soil_ph: Number(pipe.soil_ph ?? 7.0),
+      soil_resistivity_ohm_cm: Number(pipe.soil_resistivity_ohm_cm ?? 3000),
+      traffic_load_index: Number(pipe.traffic_load_index ?? 0.3),
+      geometry_type: String(pipe.geometry_type || "straight"),
+      geometry_m: Array.isArray(pipe.geometry_m) ? pipe.geometry_m : [],
+    }))
+    .filter((pipe) => nodeIds.has(pipe.from_node) && nodeIds.has(pipe.to_node) && pipe.from_node !== pipe.to_node);
+  let reservoirs = (Array.isArray(assets?.reservoirs) ? assets.reservoirs : [])
+    .filter((reservoir) => nodeIds.has(String(reservoir.node_id || "")))
+    .map((reservoir) => ({
+      node_id: String(reservoir.node_id),
+      head_m: Number(reservoir.head_m ?? 58),
+    }));
+  let reservoirNode = nodes.find((node) => node.node_type === "reservoir");
+  if (!reservoirNode && nodes.length) {
+    const anchor = nodes.find((node) => node.node_type !== "reservoir") || nodes[0];
+    reservoirNode = {
+      node_id: uniqueAssetId("R_IMG_1", new Set(nodes.map((node) => node.node_id))),
+      x: Number(anchor.x || 0) - 80,
+      y: Number(anchor.y || 0),
+      elevation_m: Number(anchor.elevation_m || 30) + 5,
+      base_demand_lps: 0,
+      node_type: "reservoir",
+      dma_id: "SOURCE",
+    };
+    nodes.unshift(reservoirNode);
+    nodeIds.add(reservoirNode.node_id);
+  }
+  if (reservoirNode && !reservoirs.some((reservoir) => reservoir.node_id === reservoirNode.node_id)) {
+    reservoirs = [{ node_id: reservoirNode.node_id, head_m: 58 }, ...reservoirs];
+  }
+  const firstJunction = nodes.find((node) => node.node_type !== "reservoir");
+  if (reservoirNode && firstJunction && !pipes.some((pipe) => pipe.from_node === reservoirNode.node_id || pipe.to_node === reservoirNode.node_id)) {
+    pipes.unshift({
+      pipe_id: uniqueAssetId("P_IMG_SOURCE", new Set(pipes.map((pipe) => pipe.pipe_id))),
+      from_node: reservoirNode.node_id,
+      to_node: firstJunction.node_id,
+      length_m: Math.max(40, distanceBetween(reservoirNode, firstJunction)),
+      diameter_mm: 300,
+      roughness_c: 100,
+      minor_loss_k: 0,
+      material: "ductile_iron",
+      service_type: "transmission",
+      install_year: 2026,
+      bend_count: 0,
+      bend_angle_deg: 0,
+      valve_count: 0,
+      repair_count: 0,
+      leak_history_count: 0,
+      burst_history_count: 0,
+      soil_ph: 7.0,
+      soil_resistivity_ohm_cm: 3000,
+      traffic_load_index: 0.2,
+      geometry_type: "straight",
+      geometry_m: [],
+    });
+  }
+  const pumps = (Array.isArray(assets?.pumps) ? assets.pumps : [])
+    .filter((pump) => nodeIds.has(String(pump.from_node || "")) && nodeIds.has(String(pump.to_node || "")))
+    .map((pump, index) => ({
+      pump_id: String(pump.pump_id || `PU_IMG_${index + 1}`),
+      from_node: String(pump.from_node),
+      to_node: String(pump.to_node),
+      base_head_gain_m: Number(pump.base_head_gain_m ?? 3),
+      speed_multiplier: Number(pump.speed_multiplier ?? 1),
+      status: String(pump.status || "on"),
+    }));
+  if (reservoirNode && firstJunction && !pumps.some((pump) => pump.from_node === reservoirNode.node_id || pump.to_node === reservoirNode.node_id)) {
+    pumps.unshift({
+      pump_id: uniqueAssetId("PU_IMG_1", new Set(pumps.map((pump) => pump.pump_id))),
+      from_node: reservoirNode.node_id,
+      to_node: firstJunction.node_id,
+      base_head_gain_m: 3,
+      speed_multiplier: 1,
+      status: "on",
+    });
+  }
+  return { nodes, pipes, reservoirs, pumps };
+}
+
+function uniqueAssetId(baseId, existingIds) {
+  if (!existingIds.has(baseId)) return baseId;
+  let index = 2;
+  while (existingIds.has(`${baseId}_${index}`)) index += 1;
+  return `${baseId}_${index}`;
 }
 
 function applyInjectedRecognitionAssets() {
@@ -1501,7 +1626,7 @@ function renderMap(snapshot) {
       state.selectionMoved = false;
       return;
     }
-    if (!state.addMode && !state.pipeDrawMode && !state.sourceDrawMode && bulkSelectionCount() > 0) {
+    if (!state.addMode && !state.pipeDrawMode && !state.sourceDrawMode && (bulkSelectionCount() > 0 || state.selected)) {
       clearMapObjectSelection();
       render();
       return;
@@ -1510,7 +1635,7 @@ function renderMap(snapshot) {
   };
   svg.onwheel = (event) => {
     event.preventDefault();
-    zoomMap(event.deltaY < 0 ? 1.12 : 0.88, eventToSvgPoint(event));
+    zoomMapFromWheel(event);
   };
   svg.onmouseup = (event) => {
     if (state.selectionBox?.active) {
@@ -1567,6 +1692,10 @@ function renderMap(snapshot) {
         toggleMultiNode(el.dataset.node);
         return;
       }
+      if (bulkSelectionCount() > 0) {
+        addMultiNode(el.dataset.node);
+        return;
+      }
       selectNode(el.dataset.node);
     }),
   );
@@ -1592,7 +1721,7 @@ function getMapFrame(nodes, width, height) {
 }
 
 function applyMapViewBox(svg, width = 1120, height = 650) {
-  const zoom = clamp(state.mapZoom || 1, 0.6, 5);
+  const zoom = clamp(state.mapZoom || 1, MAP_ZOOM_MIN, MAP_ZOOM_MAX);
   state.mapZoom = zoom;
   const viewWidth = width / zoom;
   const viewHeight = height / zoom;
@@ -1742,22 +1871,44 @@ function clampMapCenter(center, viewWidth, viewHeight, width, height) {
   };
 }
 
-function zoomMap(factor, anchorPoint = null) {
+function zoomMap(factor, anchorClientPoint = null) {
   const oldZoom = state.mapZoom || 1;
-  const nextZoom = clamp(oldZoom * factor, 0.6, 5);
-  if (anchorPoint && oldZoom !== nextZoom) {
-    const oldView = state.mapViewBox;
-    const relX = (anchorPoint.x - oldView.x) / oldView.width;
-    const relY = (anchorPoint.y - oldView.y) / oldView.height;
-    const nextWidth = state.mapFrame.width / nextZoom;
-    const nextHeight = state.mapFrame.height / nextZoom;
-    state.mapCenter = {
-      x: anchorPoint.x + (0.5 - relX) * nextWidth,
-      y: anchorPoint.y + (0.5 - relY) * nextHeight,
-    };
+  const nextZoom = clamp(oldZoom * factor, MAP_ZOOM_MIN, MAP_ZOOM_MAX);
+  if (anchorClientPoint && oldZoom !== nextZoom) {
+    state.mapCenter = mapCenterForCursorZoom(nextZoom, anchorClientPoint);
   }
   state.mapZoom = nextZoom;
   render();
+}
+
+function zoomMapFromWheel(event) {
+  if (!state.mapFrame || !state.mapViewBox) return;
+  const deltaModeMultiplier = event.deltaMode === 1 ? 18 : event.deltaMode === 2 ? 240 : 1;
+  const normalizedDelta = event.deltaY * deltaModeMultiplier;
+  const factor = Math.exp(-normalizedDelta * MAP_WHEEL_ZOOM_SENSITIVITY);
+  zoomMap(factor, { x: event.clientX, y: event.clientY });
+}
+
+function mapCenterForCursorZoom(nextZoom, clientPoint) {
+  const svg = $("network-map");
+  const rect = svg.getBoundingClientRect();
+  const oldView = state.mapViewBox || { x: 0, y: 0, width: state.mapFrame.width, height: state.mapFrame.height };
+  const cursorRatioX = clamp((clientPoint.x - rect.left) / Math.max(rect.width, 1), 0, 1);
+  const cursorRatioY = clamp((clientPoint.y - rect.top) / Math.max(rect.height, 1), 0, 1);
+  const anchorX = oldView.x + cursorRatioX * oldView.width;
+  const anchorY = oldView.y + cursorRatioY * oldView.height;
+  const nextWidth = state.mapFrame.width / nextZoom;
+  const nextHeight = state.mapFrame.height / nextZoom;
+  return clampMapCenter(
+    {
+      x: anchorX + (0.5 - cursorRatioX) * nextWidth,
+      y: anchorY + (0.5 - cursorRatioY) * nextHeight,
+    },
+    nextWidth,
+    nextHeight,
+    state.mapFrame.width,
+    state.mapFrame.height,
+  );
 }
 
 function resetMapZoom() {
@@ -1793,6 +1944,18 @@ function toggleMultiNode(nodeId) {
   if (state.multiSelectedNodes.has(nodeId)) state.multiSelectedNodes.delete(nodeId);
   else state.multiSelectedNodes.add(nodeId);
   state.selected = `node:${nodeId}`;
+  if ($("selected-junction").querySelector(`option[value="${nodeId}"]`)) $("selected-junction").value = nodeId;
+  updateBulkSelectionControls();
+  render();
+}
+
+function addMultiNode(nodeId) {
+  const node = state.nodes.find((item) => item.node_id === nodeId);
+  if (!node || node.node_type === "reservoir") return;
+  state.multiSelectedNodes = state.multiSelectedNodes || new Set();
+  state.multiSelectedNodes.add(nodeId);
+  state.selected = `node:${nodeId}`;
+  if ($("selected-junction").querySelector(`option[value="${nodeId}"]`)) $("selected-junction").value = nodeId;
   updateBulkSelectionControls();
   render();
 }
@@ -1823,6 +1986,22 @@ function updateBulkSelectionControls() {
   const pipeCount = state.multiSelectedPipes?.size || 0;
   if ($("bulk-selection-count")) $("bulk-selection-count").textContent = `선택 ${nodeCount + pipeCount}개`;
   if ($("bulk-selection-mode")) $("bulk-selection-mode").textContent = `Junction ${nodeCount}개 · Pipe ${pipeCount}개`;
+}
+
+function average(values) {
+  const safeValues = values.filter((value) => Number.isFinite(value));
+  if (!safeValues.length) return 0;
+  return safeValues.reduce((sum, value) => sum + value, 0) / safeValues.length;
+}
+
+function topCategory(values) {
+  const counts = new Map();
+  for (const value of values) {
+    const label = String(value || "unknown");
+    counts.set(label, (counts.get(label) || 0) + 1);
+  }
+  const [label, count] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0] || ["없음", 0];
+  return count > 1 ? `${label} (${count})` : label;
 }
 
 function nodesInBulkMove() {
@@ -2384,6 +2563,11 @@ function analyzeBulkSelection() {
   const snapshot = computeSnapshot();
   const nodeIds = new Set(state.multiSelectedNodes || []);
   const pipeIds = new Set(state.multiSelectedPipes || []);
+  if (!nodeIds.size && !pipeIds.size && state.selected) {
+    const [kind, id] = state.selected.split(":");
+    if (kind === "node") nodeIds.add(id);
+    if (kind === "pipe") pipeIds.add(id);
+  }
   const nodes = snapshot.nodes.filter((node) => nodeIds.has(node.node_id));
   const pipes = snapshot.pipes.filter((pipe) => pipeIds.has(pipe.pipe_id));
   if (!nodes.length && !pipes.length) {
@@ -2391,14 +2575,44 @@ function analyzeBulkSelection() {
     return;
   }
   const lowNodes = nodes.filter((node) => node.node_type !== "reservoir" && node.pressure < MIN_PRESSURE);
-  const avgPressure = nodes.length ? nodes.reduce((sum, node) => sum + Number(node.pressure || 0), 0) / nodes.length : 0;
+  const nodePressures = nodes.map((node) => Number(node.pressure || 0));
+  const avgPressure = nodePressures.length ? average(nodePressures) : 0;
+  const minPressure = nodePressures.length ? Math.min(...nodePressures) : 0;
+  const maxPressure = nodePressures.length ? Math.max(...nodePressures) : 0;
+  const totalLength = pipes.reduce((sum, pipe) => sum + Number(pipe.length_m || 0), 0);
+  const avgFlow = pipes.length ? average(pipes.map((pipe) => Number(pipe.flow_lps || 0))) : 0;
+  const leakPipes = pipes.filter((pipe) => Number(pipe.leakDemand || 0) > 0 || pipe.status === "leak");
+  const overpressurePipes = pipes.filter((pipe) => pipe.status === "overpressure" || pipe.pressureSafety?.overpressure);
+  const warningPipes = pipes.filter((pipe) => pipe.status === "low" || pipe.status === "overpressure" || pipe.pressureSafety?.warning);
   const highRiskPipe = pipes
-    .map((pipe) => ({ pipe, score: state.aging.get(pipe.pipe_id) || 0 }))
+    .map((pipe) => ({ pipe, score: state.aging.get(pipe.pipe_id) ?? agingScore(pipe) }))
     .sort((a, b) => b.score - a.score)[0];
-  $("selection-detail").innerHTML = `<strong>선택 구역 분석</strong>
-    <span>Junction ${nodes.length}개 · Pipe ${pipes.length}개</span>
-    <span>평균 압력 ${avgPressure.toFixed(1)} m · 저압 Junction ${lowNodes.length}개</span>
-    <span>최고 위험 Pipe ${highRiskPipe ? `${highRiskPipe.pipe.pipe_id} (${highRiskPipe.score.toFixed(2)})` : "없음"}</span>`;
+  const materialSummary = topCategory(pipes.map((pipe) => pipe.material || "unknown"));
+  const diameterSummary = topCategory(pipes.map((pipe) => `${Number(pipe.diameter_mm || 0).toFixed(0)} mm`));
+  const riskLevel = lowNodes.length || leakPipes.length || overpressurePipes.length ? "주의" : warningPipes.length ? "관찰" : "양호";
+  const riskClass = riskLevel === "양호" ? "ok" : riskLevel === "관찰" ? "watch" : "risk";
+  $("selection-detail").innerHTML = `<div class="selection-analysis-card">
+    <div class="analysis-title-row">
+      <div>
+        <strong>선택 구역 분석</strong>
+        <span>Junction ${nodes.length}개 · Pipe ${pipes.length}개 · 총 연장 ${totalLength.toFixed(0)} m</span>
+      </div>
+      <b class="risk-badge ${riskClass}">${riskLevel}</b>
+    </div>
+    <div class="analysis-metric-grid">
+      <span><small>평균 압력</small><b>${avgPressure.toFixed(1)} m</b></span>
+      <span><small>최소 / 최대</small><b>${minPressure.toFixed(1)} / ${maxPressure.toFixed(1)} m</b></span>
+      <span><small>저압 Junction</small><b>${lowNodes.length}개</b></span>
+      <span><small>평균 유량</small><b>${avgFlow.toFixed(1)} L/s</b></span>
+      <span><small>누수 Pipe</small><b>${leakPipes.length}개</b></span>
+      <span><small>과압 Pipe</small><b>${overpressurePipes.length}개</b></span>
+    </div>
+    <div class="analysis-insight-grid">
+      <span><small>대표 관경</small><b>${diameterSummary}</b></span>
+      <span><small>대표 재질</small><b>${materialSummary}</b></span>
+      <span><small>최고 위험 Pipe</small><b>${highRiskPipe ? `${highRiskPipe.pipe.pipe_id} · ${highRiskPipe.score.toFixed(2)}` : "없음"}</b></span>
+    </div>
+  </div>`;
 }
 
 function addSourcePumpImmediateLegacy() {
