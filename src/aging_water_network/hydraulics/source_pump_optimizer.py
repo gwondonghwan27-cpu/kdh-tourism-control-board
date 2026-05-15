@@ -217,10 +217,13 @@ def _apply_control_boosts(tables: Mapping[str, pd.DataFrame], boosts: Mapping[st
             continue
         if control["type"] == "pump" and "pumps" in boosted and not boosted["pumps"].empty:
             index = control["index"]
+            boosted["pumps"]["base_head_gain_m"] = pd.to_numeric(boosted["pumps"].get("base_head_gain_m", 0.0), errors="coerce").fillna(0.0).astype(float)
+            boosted["pumps"]["speed_multiplier"] = pd.to_numeric(boosted["pumps"].get("speed_multiplier", 1.0), errors="coerce").fillna(1.0).astype(float)
             boosted["pumps"].loc[index, "base_head_gain_m"] = float(boosted["pumps"].loc[index].get("base_head_gain_m", 0.0) or 0.0) + boost
             boosted["pumps"].loc[index, "speed_multiplier"] = 1.0
         if control["type"] == "source" and "reservoirs" in boosted and not boosted["reservoirs"].empty:
             index = control["index"]
+            boosted["reservoirs"]["head_m"] = pd.to_numeric(boosted["reservoirs"].get("head_m", 0.0), errors="coerce").fillna(0.0).astype(float)
             boosted["reservoirs"].loc[index, "head_m"] = float(boosted["reservoirs"].loc[index].get("head_m", 0.0) or 0.0) + boost
     return boosted
 

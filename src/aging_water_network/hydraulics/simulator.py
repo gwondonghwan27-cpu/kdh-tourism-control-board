@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import Mapping as MappingABC
 from pathlib import Path
 from typing import Mapping
 
@@ -70,14 +72,62 @@ def _source_heads(tables: Mapping[str, pd.DataFrame], source_head_delta_m: float
     return {str(row["node_id"]): float(row["head_m"]) + source_head_delta_m for row in reservoirs.to_dict("records")}
 
 
-def _pump_gain_by_edge(tables: Mapping[str, pd.DataFrame]) -> dict[tuple[str, str], float]:
+def _pump_gain_by_edge(
+    tables: Mapping[str, pd.DataFrame],
+    flow_by_edge: Mapping[tuple[str, str], float] | None = None,
+) -> dict[tuple[str, str], float]:
     gains: dict[tuple[str, str], float] = {}
+    flow_lookup = dict(flow_by_edge or {})
     for row in tables.get("pumps", pd.DataFrame()).to_dict("records"):
         if str(row.get("status", "on")).lower() == "off":
             continue
-        gain = float(row.get("base_head_gain_m", 0.0)) * float(row.get("speed_multiplier", 1.0))
-        gains[(str(row["from_node"]), str(row["to_node"]))] = gain
+        edge = (str(row["from_node"]), str(row["to_node"]))
+        speed = max(float(row.get("speed_multiplier", 1.0) or 1.0), 1e-6)
+        base_gain = float(row.get("base_head_gain_m", 0.0) or 0.0)
+        curve_points = _pump_curve_points(row)
+        if curve_points and edge in flow_lookup:
+            curve_head = _interpolate_pump_curve_head(float(flow_lookup[edge]), curve_points, speed)
+            reference_head = float(row.get("curve_reference_head_m", curve_points[0][1]) or curve_points[0][1])
+            gain = curve_head + (base_gain - reference_head) * speed
+        elif curve_points:
+            gain = float(row.get("curve_reference_head_m", base_gain) or base_gain) * speed
+        else:
+            gain = base_gain * speed
+        gains[edge] = gain
     return gains
+
+
+def _pump_curve_points(row: Mapping[str, object]) -> list[tuple[float, float]]:
+    raw_points = row.get("pump_curve_points", [])
+    if isinstance(raw_points, str):
+        try:
+            raw_points = json.loads(raw_points)
+        except json.JSONDecodeError:
+            return []
+    if not isinstance(raw_points, list):
+        return []
+    points: list[tuple[float, float]] = []
+    for point in raw_points:
+        if not isinstance(point, MappingABC):
+            continue
+        flow = pd.to_numeric(point.get("flow_lps"), errors="coerce")
+        head = pd.to_numeric(point.get("head_m"), errors="coerce")
+        if pd.notna(flow) and pd.notna(head):
+            points.append((float(flow), float(head)))
+    return sorted(points)
+
+
+def _interpolate_pump_curve_head(flow_lps: float, points: list[tuple[float, float]], speed: float) -> float:
+    if not points:
+        return 0.0
+    scaled_flow = max(float(flow_lps), 0.0) / max(float(speed), 1e-6)
+    if len(points) == 1 or scaled_flow <= points[0][0]:
+        return float(points[0][1]) * float(speed) ** 2
+    for (flow_a, head_a), (flow_b, head_b) in zip(points, points[1:]):
+        if scaled_flow <= flow_b:
+            ratio = (scaled_flow - flow_a) / max(flow_b - flow_a, 1e-9)
+            return float(head_a + ratio * (head_b - head_a)) * float(speed) ** 2
+    return float(points[-1][1]) * float(speed) ** 2
 
 
 def _headloss_formula(tables: Mapping[str, pd.DataFrame]) -> str:
@@ -103,6 +153,17 @@ def _valve_status_by_pipe(valves: pd.DataFrame) -> dict[str, str]:
     return statuses
 
 
+def _effective_link_status(pipe: Mapping[str, object], valve_status_by_pipe: Mapping[str, str] | None = None) -> str:
+    pipe_id = str(pipe.get("pipe_id", ""))
+    status_lookup = dict(valve_status_by_pipe or {})
+    status = status_lookup.get(pipe_id, str(pipe.get("status", "open"))).lower()
+    if status in {"closed", "close"}:
+        return "closed"
+    if status in {"partially_open", "partial"}:
+        return "partially_open"
+    return "open"
+
+
 def _build_hydraulic_graph(
     pipes: pd.DataFrame,
     params: pd.DataFrame,
@@ -115,7 +176,7 @@ def _build_hydraulic_graph(
     for row in pipes.to_dict("records"):
         pipe_id = str(row["pipe_id"])
         param = param_lookup[pipe_id]
-        status = status_lookup.get(pipe_id, "open")
+        status = _effective_link_status(row, status_lookup)
         status_multiplier = {"open": 1.0, "partially_open": 30.0, "closed": 1_000_000.0}.get(status, 1.0)
         resistance, _exponent, _friction = epanet_pipe_resistance(
             float(row["length_m"]),
@@ -273,6 +334,15 @@ def _solve_epanet_formula_heads(
     return heads, flows, converged
 
 
+def _flow_by_edge_from_pipe_flows(pipes: pd.DataFrame, flows_by_pipe: Mapping[str, float]) -> dict[tuple[str, str], float]:
+    flows: dict[tuple[str, str], float] = {}
+    for row in pipes.to_dict("records"):
+        pipe_id = str(row["pipe_id"])
+        if pipe_id in flows_by_pipe:
+            flows[(str(row["from_node"]), str(row["to_node"]))] = float(flows_by_pipe[pipe_id])
+    return flows
+
+
 def _tree_edge_demands(
     graph: nx.Graph,
     root: str,
@@ -370,6 +440,25 @@ def run_fallback_simulation(
         pump_gain,
         formula,
     )
+    for _ in range(5):
+        if not converged:
+            break
+        next_pump_gain = _pump_gain_by_edge(copied_tables, _flow_by_edge_from_pipe_flows(pipes, solved_flows))
+        max_gain_delta = max(
+            (abs(next_pump_gain.get(edge, 0.0) - pump_gain.get(edge, 0.0)) for edge in set(next_pump_gain) | set(pump_gain)),
+            default=0.0,
+        )
+        pump_gain = next_pump_gain
+        if max_gain_delta < 0.02:
+            break
+        hgl, solved_flows, converged = _solve_epanet_formula_heads(
+            copied_tables["nodes"],
+            pipes,
+            pipe_params,
+            source_heads,
+            pump_gain,
+            formula,
+        )
     if not converged:
         parent, edge_demands = _tree_edge_demands(graph, root, copied_tables["nodes"])
         hgl = {root: source_heads[root]}
@@ -441,7 +530,7 @@ def run_fallback_simulation(
                 "headloss_gradient": round(abs(float(loss)) / max(float(row["length_m"]), 1.0), 8),
                 "from_hydraulic_grade_m": round(float(hgl.get(from_node, source_heads[root])), 6),
                 "to_hydraulic_grade_m": round(float(hgl.get(to_node, source_heads[root])), 6),
-                "valve_status": status_by_pipe.get(pipe_id, "open"),
+                "valve_status": _effective_link_status(row, status_by_pipe),
             }
         )
     pipe_results = pd.DataFrame(pipe_rows)
