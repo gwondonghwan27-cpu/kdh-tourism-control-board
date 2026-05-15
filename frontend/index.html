@@ -16,46 +16,46 @@
         </div>
       </div>
       <nav class="global-nav" aria-label="workspace index">
-        <button class="global-nav-link" data-view-target="recognition" type="button">도면 인식</button>
-        <button class="global-nav-link active" data-view-target="dashboard" type="button">관망조절 대쉬보드</button>
+        <button class="global-nav-link" data-view-target="recognition" type="button">INP 업로드</button>
+        <button class="global-nav-link active" data-view-target="dashboard" type="button">GIS 관제 대시보드</button>
       </nav>
     </header>
 
-    <section id="recognition-view" class="app-view" data-view="recognition" aria-label="drawing recognition workspace">
+    <section id="recognition-view" class="app-view" data-view="recognition" aria-label="epanet inp import workspace">
       <header class="app-header recognition-header">
         <div>
-          <p class="eyebrow">Multi-format drawing intake</p>
-          <h1>관망 도면 이미지 인식</h1>
+          <p class="eyebrow">EPANET INP model intake</p>
+          <h1>EPANET .inp 관망 모델 업로드</h1>
         </div>
         <div class="status-strip" aria-label="recognition status">
-          <span id="recognition-status">drawing waiting</span>
+          <span id="recognition-status">inp waiting</span>
           <span id="recognition-count">0 pipes / 0 nodes</span>
         </div>
       </header>
 
       <main class="recognition-workspace">
-        <section class="recognition-console" aria-label="drawing recognition controls">
+        <section class="recognition-console" aria-label="epanet inp import controls">
           <div class="recognition-primary-controls">
             <label>
-              관망 도면 파일
-              <input id="drawing-file" type="file" accept="image/png,image/jpeg,application/pdf,.jpg,.jpeg,.png,.pdf,.dwg,.dxf" />
+              EPANET INP 파일
+              <input id="drawing-file" type="file" accept=".inp,application/octet-stream,text/plain" />
             </label>
-            <label>
+            <label class="inp-hidden">
               최소 선분 길이
               <input id="drawing-min-line" type="range" min="20" max="180" step="5" value="45" />
               <span id="drawing-min-line-value">45 px</span>
             </label>
-            <label>
+            <label class="inp-hidden">
               끝점 병합 허용치
               <input id="drawing-merge-tolerance" type="range" min="6" max="42" step="2" value="18" />
               <span id="drawing-merge-tolerance-value">18 px</span>
             </label>
             <label>
-              픽셀-미터 환산
+              좌표 스케일
               <input id="drawing-scale" type="number" min="0.01" max="20" step="0.05" value="1" />
             </label>
             <label>
-              기본 관경
+              기본 관경 mm
               <input id="drawing-diameter" type="number" min="50" max="1200" step="10" value="150" />
             </label>
             <label>
@@ -69,42 +69,30 @@
                 <option value="concrete">concrete</option>
               </select>
             </label>
-            <button id="analyze-drawing" class="primary-button" type="button">도면 분석</button>
-          </div>
-          <div class="recognition-candidate-actions" aria-label="manual recognition candidate controls">
-            <button id="reset-drawing" class="text-button" type="button">이미지 초기화</button>
-            <button id="junction-sample-mode" class="text-button" type="button">Junction 후보 선택</button>
-            <button id="clear-junction-samples" class="text-button" type="button">Junction 후보 초기화</button>
-            <span id="junction-sample-count" class="sample-count">0 / 100</span>
-            <button id="pipe-sample-mode" class="text-button" type="button">Pipe 후보 선택</button>
-            <button id="clear-pipe-samples" class="text-button" type="button">Pipe 후보 초기화</button>
-            <span id="pipe-sample-count" class="sample-count">0 / 100</span>
-            <button id="source-sample-mode" class="text-button" type="button">Source/Pump 후보 선택</button>
-            <button id="clear-source-samples" class="text-button" type="button">Source/Pump 후보 초기화</button>
-            <span id="source-sample-count" class="sample-count">0 / 100</span>
+            <button id="analyze-drawing" class="primary-button" type="button">INP 파싱</button>
           </div>
         </section>
-        <p class="recognition-format-guidance">[ .JPG, .PNG 도면은 Junction 후보를 우선 사용하고, 표시되지 않은 관은 Pipe 후보 선택으로 보강해 주십시오. ]</p>
+        <p class="recognition-format-guidance">[ EPANET .inp 파일의 JUNCTIONS / RESERVOIRS / PIPES / PUMPS / COORDINATES / VERTICES 섹션을 읽어 대시보드 자산으로 변환합니다. ]</p>
 
         <section class="recognition-grid">
           <article class="drawing-preview-panel">
             <div class="section-heading">
-              <h2>도면 오버레이</h2>
+              <h2>INP 네트워크 프리뷰</h2>
               <div class="recognition-actions">
                 <button id="download-assets-json" class="text-button" type="button" disabled>JSON</button>
                 <button id="download-nodes-csv" class="text-button" type="button" disabled>nodes.csv</button>
                 <button id="download-pipes-csv" class="text-button" type="button" disabled>pipes.csv</button>
                 <button id="download-reservoirs-csv" class="text-button" type="button" disabled>reservoirs.csv</button>
-                <button id="apply-recognition-assets" class="primary-button compact-action" type="button" disabled>후보 적용</button>
+                <button id="apply-recognition-assets" class="primary-button compact-action" type="button" disabled>관망 적용</button>
               </div>
             </div>
             <div class="drawing-canvas-frame">
               <canvas id="drawing-canvas" width="1120" height="620"></canvas>
               <div id="drawing-empty-state" class="drawing-format-guide">
-                <strong>지원 도면 형식</strong>
-                <span>JPG/PNG: Gemini vision + OpenCV 후보 추출 + OCR + topology 보정</span>
-                <span>PDF: 벡터 PDF geometry/text 우선 + 스캔 PDF 이미지 경로</span>
-                <span>DWG/DXF: CAD layer/block/polyline/text 파서 + Gemini 의미 판단 보조</span>
+                <strong>지원 파일 형식</strong>
+                <span>.inp: EPANET 관망 모델을 직접 파싱합니다.</span>
+                <span>좌표가 있으면 원래 배치를 유지하고, 없으면 topology 기반 자동 배치를 사용합니다.</span>
+                <span>파싱 후 JSON/CSV로 내보내거나 GIS 관제 대시보드에 바로 적용할 수 있습니다.</span>
               </div>
             </div>
           </article>
@@ -112,15 +100,15 @@
           <aside class="recognition-side-panel">
             <div class="metric-grid recognition-metrics">
               <article>
-                <span>Pipe 후보</span>
+                <span>Pipe</span>
                 <strong id="recognized-pipe-count">0</strong>
               </article>
               <article>
-                <span>Node 후보</span>
+                <span>Node</span>
                 <strong id="recognized-node-count">0</strong>
               </article>
               <article>
-                <span>이미지 크기</span>
+                <span>파일</span>
                 <strong id="recognized-image-size">--</strong>
               </article>
               <article>
@@ -129,12 +117,18 @@
               </article>
             </div>
             <div class="section-heading compact-heading">
-              <h2>nodes.csv 후보</h2>
+              <h2>nodes.csv 변환 결과</h2>
             </div>
             <div id="recognized-nodes-table" class="recognition-table"></div>
             <div class="section-heading compact-heading">
-              <h2>pipes.csv 후보</h2>
+              <h2>pipes.csv 변환 결과</h2>
+              <div class="candidate-filter inp-hidden" aria-label="pipe candidate filter">
+                <button class="text-button active" data-recognition-filter="all" type="button">전체</button>
+                <button class="text-button" data-recognition-filter="low" type="button">낮은 신뢰도</button>
+                <button class="text-button" data-recognition-filter="confirmed" type="button">확정</button>
+              </div>
             </div>
+            <p id="recognition-review-summary" class="review-summary">INP 파싱 후 변환된 Pipe/Junction을 확인하고 관망에 적용하세요.</p>
             <div id="recognized-pipes-table" class="recognition-table"></div>
           </aside>
         </section>
@@ -144,11 +138,11 @@
     <section id="dashboard-view" class="app-view active" data-view="dashboard" aria-label="network control dashboard">
       <header class="app-header">
         <div>
-          <p class="eyebrow">EPANET-ready hydraulic digital twin</p>
-          <h1>상수관망 압력·유량 변화 관제 보드</h1>
+          <p class="eyebrow">EPANET + GIS + real-time pressure heatmap</p>
+          <h1>상수관망 디지털 트윈 관제 플랫폼</h1>
         </div>
         <div class="status-strip" aria-label="simulation status">
-          <span id="scenario-label">mock network / live controls</span>
+          <span id="scenario-label">데이터 없음 / INP 업로드 대기</span>
           <span id="time-label">ready</span>
         </div>
       </header>
@@ -171,7 +165,19 @@
         <div class="timeline-scale" id="timeline-scale"></div>
       </section>
 
-      <section class="control-band" aria-label="hydraulic scenario controls">
+      <section class="dashboard-mode-tabs" aria-label="dashboard work modes">
+        <div class="dashboard-mode-copy">
+          <span>업무 모드</span>
+          <strong id="dashboard-mode-summary">관망 상태를 확인하고 지도에서 바로 자산을 선택·편집합니다.</strong>
+        </div>
+        <div class="dashboard-mode-buttons" role="tablist" aria-label="dashboard mode tabs">
+          <button class="dashboard-mode-tab active" data-dashboard-mode-target="ops" type="button" role="tab" aria-selected="true">관망 운영/편집</button>
+          <button class="dashboard-mode-tab" data-dashboard-mode-target="scenario" type="button" role="tab" aria-selected="false">시나리오/최적화</button>
+          <button class="dashboard-mode-tab" data-dashboard-mode-target="diagnostics" type="button" role="tab" aria-selected="false">전문 진단</button>
+        </div>
+      </section>
+
+      <section class="control-band" aria-label="hydraulic scenario controls" data-dashboard-mode="scenario">
         <label>
           시간대별 수요
           <select id="demand-profile">
@@ -182,17 +188,17 @@
         </label>
         <label>
           수요 배율
-          <input id="demand-scale" type="range" min="0.7" max="1.8" step="0.05" value="1" />
+          <input id="demand-scale" type="range" min="0.1" max="5" step="0.05" value="1" />
           <span id="demand-scale-value">1.00x</span>
         </label>
         <label>
           공급 수두
-          <input id="source-head" type="range" min="44" max="76" step="0.5" value="58" />
+          <input id="source-head" type="range" min="0" max="250" step="0.5" value="58" />
           <span id="source-head-value">58.0 m</span>
         </label>
         <label>
           Pump 가압
-          <input id="pump-head" type="range" min="0" max="18" step="0.5" value="3" />
+          <input id="pump-head" type="range" min="0" max="150" step="0.5" value="3" />
           <span id="pump-head-value">3.0 m</span>
         </label>
         <label>
@@ -201,14 +207,78 @@
         </label>
         <label>
           추가 누수량
-          <input id="leak-demand" type="range" min="0" max="6" step="0.25" value="2" />
+          <input id="leak-demand" type="range" min="0" max="100" step="0.5" value="2" />
           <span id="leak-demand-value">2.00 L/s</span>
         </label>
         <button id="add-leak-pipe" class="primary-button" type="button">누수 추가</button>
         <button id="reset-scenario" class="primary-button" type="button">기본값</button>
+        <button id="run-backend-simulation" class="text-button" type="button">정밀 해석</button>
+        <button id="optimize-source-pump" class="primary-button optimize-button" type="button">Source/Pump 최적화</button>
+        <div id="backend-simulation-status" class="simulation-status">실시간 관망 계산값</div>
+        <div id="source-pump-prediction" class="source-pump-prediction">
+          Source/Pump 최적화를 실행하면 저압 해소를 위한 권장 가압, 공급 유량, 펌프 유량이 표시됩니다.
+        </div>
       </section>
 
-      <section class="asset-toolbar" aria-label="network editing tools">
+      <section class="operations-console" aria-label="digital twin operating console" data-dashboard-mode="ops">
+        <article class="operations-card">
+          <div>
+            <span class="ops-label">GIS Heatmap</span>
+            <strong id="ops-gis-status">압력 지도 준비</strong>
+          </div>
+          <p id="ops-gis-detail">시간 슬라이더와 수요 배율에 따라 압력 컬러맵을 갱신합니다.</p>
+          <div class="ops-meter"><span id="ops-gis-meter"></span></div>
+        </article>
+        <article class="operations-card">
+          <div>
+            <span class="ops-label">SCADA Sync</span>
+            <strong id="ops-scada-status">가상 센서 대기</strong>
+          </div>
+          <p id="ops-scada-detail">유량, 압력, 펌프 상태를 운영 지표로 요약합니다.</p>
+          <div class="ops-meter"><span id="ops-scada-meter"></span></div>
+        </article>
+        <article class="operations-card">
+          <div>
+            <span class="ops-label">Leak Probability</span>
+            <strong id="ops-leak-status">누수 확률 산정</strong>
+          </div>
+          <p id="ops-leak-detail">야간 최소유량, 압력 잔차, 노후도를 누수 후보 점수로 결합합니다.</p>
+          <div class="ops-meter"><span id="ops-leak-meter"></span></div>
+        </article>
+        <article class="operations-card">
+          <div>
+            <span class="ops-label">Digital Twin</span>
+            <strong id="ops-twin-status">MVP 동기화</strong>
+          </div>
+          <p id="ops-twin-detail">도면/INP 변환, 시나리오, 경보, 추천 제어의 연결 상태를 표시합니다.</p>
+          <div class="ops-meter"><span id="ops-twin-meter"></span></div>
+        </article>
+      </section>
+
+      <section class="mvp-roadmap" aria-label="product roadmap" data-dashboard-mode="diagnostics">
+        <article class="roadmap-step active">
+          <span>1단계 MVP</span>
+          <strong>INP/도면 업로드 · GIS 시각화 · 압력/유량 컬러맵 · 시간 슬라이더</strong>
+        </article>
+        <article class="roadmap-step">
+          <span>2단계 운영</span>
+          <strong>SCADA 연동 · 누수 탐지 · 실시간 경보</strong>
+        </article>
+        <article class="roadmap-step">
+          <span>3단계 고도화</span>
+          <strong>Digital Twin · AI 관 파손 예측 · 운영 최적화</strong>
+        </article>
+      </section>
+
+      <section class="expert-diagnostics" aria-label="hydraulic expert diagnostics" data-dashboard-mode="diagnostics">
+        <div class="section-heading compact-heading">
+          <h2>전문 진단</h2>
+          <button id="download-professional-report" class="text-button" type="button">진단 리포트 JSON</button>
+        </div>
+        <div id="expert-diagnostics-grid" class="expert-diagnostics-grid"></div>
+      </section>
+
+      <section class="asset-toolbar" aria-label="network editing tools" data-dashboard-mode="ops">
         <div class="tool-title">자산 선택</div>
         <button id="pipe-tool" class="asset-button active" type="button" aria-label="Pipe 선택">
           <span class="tool-icon pipe-mark"></span>
@@ -227,7 +297,7 @@
         <button id="delete-pipe" class="text-button danger-button" type="button">Pipe 삭제</button>
       </section>
 
-      <section class="batch-toolbar" aria-label="cad style multi selection tools">
+      <section class="batch-toolbar" aria-label="cad style multi selection tools" data-dashboard-mode="ops">
         <div>
           <strong id="bulk-selection-count">선택 0개</strong>
           <span id="bulk-selection-mode">왼쪽→오른쪽: 포함 선택 · 오른쪽→왼쪽: 교차 선택</span>
@@ -236,7 +306,7 @@
         <button id="bulk-analyze" class="text-button" type="button">선택 구역 분석</button>
         <label>
           Pipe 관경
-          <input id="bulk-pipe-diameter" type="number" min="80" max="1200" step="10" value="150" />
+          <input id="bulk-pipe-diameter" type="number" min="50" max="3000" step="10" value="150" />
         </label>
         <label>
           Pipe 재질
@@ -256,7 +326,7 @@
         </label>
         <label>
           Junction 수요
-          <input id="bulk-junction-demand" type="number" min="0" max="20" step="0.05" value="0.8" />
+          <input id="bulk-junction-demand" type="number" min="0" max="100" step="0.05" value="0.8" />
         </label>
         <label>
           Junction DMA
@@ -287,8 +357,14 @@
       <section class="workspace">
         <div class="map-panel">
           <div class="section-heading">
-            <h2>관망 지도</h2>
+            <h2 class="map-title">관망지도</h2>
             <div class="map-heading-tools">
+              <div class="layer-tabs" aria-label="map layer controls">
+                <button class="layer-tab active" data-map-layer="pressure" type="button">압력</button>
+                <button class="layer-tab" data-map-layer="leak" type="button">누수</button>
+                <button class="layer-tab" data-map-layer="dma" type="button">DMA</button>
+                <button class="layer-tab" data-map-layer="risk" type="button">위험도</button>
+              </div>
               <div class="legend">
                 <span><i class="normal"></i>정상</span>
                 <span><i class="warn"></i>주의</span>
@@ -302,6 +378,10 @@
                 <span id="map-zoom-label">100%</span>
                 <button id="map-zoom-in" class="icon-button" type="button" title="확대">+</button>
                 <button id="map-zoom-reset" class="text-button" type="button">맞춤</button>
+              </div>
+              <div class="map-interaction-controls" aria-label="map interaction controls">
+                <button id="map-pan-toggle" class="text-button map-pan-toggle" type="button" aria-pressed="false">Pan OFF</button>
+                <span id="map-interaction-status">객체 선택 모드</span>
               </div>
             </div>
           </div>
@@ -350,17 +430,17 @@
                 </label>
                 <label>
                   공급 수두
-                  <input id="source-design-head" type="range" min="30" max="95" step="0.5" value="58" />
+                  <input id="source-design-head" type="range" min="0" max="250" step="0.5" value="58" />
                   <span id="source-design-head-value">58.0 m</span>
                 </label>
                 <label>
                   Pump 가압
-                  <input id="source-pump-gain" type="range" min="0" max="35" step="0.5" value="3" />
+                  <input id="source-pump-gain" type="range" min="0" max="150" step="0.5" value="3" />
                   <span id="source-pump-gain-value">3.0 m</span>
                 </label>
                 <label>
                   연결 Pipe 관경
-                  <input id="source-pipe-diameter" type="range" min="100" max="800" step="10" value="300" />
+                  <input id="source-pipe-diameter" type="range" min="50" max="3000" step="10" value="300" />
                   <span id="source-pipe-diameter-value">300 mm</span>
                 </label>
                 <label>
@@ -374,6 +454,7 @@
                   <span id="source-pipe-roughness-value">100</span>
                 </label>
                 <div class="draw-readout" id="source-readout">Source/Pump는 선택 Junction에 공급원과 연결 Pipe를 함께 추가합니다.</div>
+                <div class="source-link-summary" id="source-link-summary">선택 Source/Pump의 연결 Pipe와 Pump 정보가 여기에 표시됩니다.</div>
                 <div class="source-actions">
                   <button id="add-source-pump" class="primary-button" type="button">Source/Pump 추가</button>
                   <button id="delete-source-pump" class="text-button danger-button" type="button">Source/Pump 삭제</button>
@@ -423,7 +504,7 @@
                 </label>
                 <label>
                   기본 수요
-                  <input id="junction-demand" type="range" min="0" max="8" step="0.05" value="1" />
+                  <input id="junction-demand" type="range" min="0" max="100" step="0.05" value="1" />
                   <span id="junction-demand-value">1.00 L/s</span>
                 </label>
                 <label>
@@ -453,7 +534,7 @@
                 </label>
                 <label>
                   관경
-                  <input id="pipe-diameter" type="range" min="80" max="600" step="10" value="150" />
+                  <input id="pipe-diameter" type="range" min="50" max="3000" step="10" value="150" />
                   <span id="pipe-diameter-value">150 mm</span>
                 </label>
                 <label>
@@ -531,7 +612,7 @@
         </aside>
       </section>
 
-      <section class="analysis-grid">
+      <section class="analysis-grid" data-dashboard-mode="diagnostics">
         <article>
           <div class="section-heading">
             <h2>교체·점검 우선 Pipe</h2>

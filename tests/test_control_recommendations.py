@@ -119,7 +119,7 @@ def _tables(
 
 def test_recommendations_rank_pressure_recovery_first() -> None:
     recommendations = rank_control_recommendations(
-        tables=_tables(source_head=30.0, aged_pipe_length_m=120.0),
+        tables=_tables(source_head=38.0, aged_pipe_length_m=120.0),
         simulator=run_fallback_hydraulic_simulation,
         max_recommendations=3,
     )

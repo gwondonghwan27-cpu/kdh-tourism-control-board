@@ -2,8 +2,10 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
-const root = path.resolve("..");
+const serverDir = path.dirname(fileURLToPath(import.meta.url));
+const root = path.resolve(serverDir, "..");
 const port = 5173;
 const mime = {
   ".html": "text/html;charset=utf-8",
@@ -24,8 +26,8 @@ http
       sendJson(response, 200, { ok: true, service: "drawing-recognition-api", supports_cors: true });
       return;
     }
-    if (request.method === "POST" && route === "/api/recognize-drawing") {
-      handleDrawingRecognition(request, response);
+    if (request.method === "POST" && route === "/api/simulate-network") {
+      handlePythonJsonRequest(request, response, "simulate_network_api.py", "simulation");
       return;
     }
     if (route === "/") route = "/frontend/index.html";
@@ -50,7 +52,7 @@ http
   })
   .listen(port, "127.0.0.1");
 
-function handleDrawingRecognition(request, response) {
+function handlePythonJsonRequest(request, response, scriptName, label) {
   let body = "";
   request.setEncoding("utf8");
   request.on("data", (chunk) => {
@@ -60,12 +62,12 @@ function handleDrawingRecognition(request, response) {
   request.on("end", () => {
     const python = process.env.PYTHON || path.join(root, ".venv-win", "Scripts", "python.exe");
     const fallbackPython = "python";
-    runRecognitionProcess(python, body, (error, result) => {
+    runPythonProcess(python, scriptName, body, label, (error, result) => {
       if (!error) {
         sendJson(response, 200, result);
         return;
       }
-      runRecognitionProcess(fallbackPython, body, (fallbackError, fallbackResult) => {
+      runPythonProcess(fallbackPython, scriptName, body, label, (fallbackError, fallbackResult) => {
         if (fallbackError) {
           sendJson(response, 500, { error: fallbackError.message || String(fallbackError) });
           return;
@@ -76,8 +78,8 @@ function handleDrawingRecognition(request, response) {
   });
 }
 
-function runRecognitionProcess(command, body, callback) {
-  const script = path.join(root, "scripts", "recognize_drawing_api.py");
+function runPythonProcess(command, scriptName, body, label, callback) {
+  const script = path.join(root, "scripts", scriptName);
   const child = spawn(command, [script], { cwd: root, stdio: ["pipe", "pipe", "pipe"] });
   let stdout = "";
   let stderr = "";
@@ -92,13 +94,13 @@ function runRecognitionProcess(command, body, callback) {
   child.on("error", callback);
   child.on("close", (code) => {
     if (code !== 0) {
-      callback(new Error(stderr || `recognition process exited with code ${code}`));
+      callback(new Error(stderr || `${label} process exited with code ${code}`));
       return;
     }
     try {
       callback(null, JSON.parse(stdout));
     } catch (error) {
-      callback(new Error(`recognition response parse failed: ${error.message}`));
+      callback(new Error(`${label} response parse failed: ${error.message}`));
     }
   });
   child.stdin.end(body);

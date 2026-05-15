@@ -4,6 +4,18 @@ Proof-of-concept simulator for an aging water distribution network. The project 
 
 This is not a real failure-prediction product. It is a local engineering prototype showing how aging-related pipe metadata can be coupled to hydraulic simulation and control logic.
 
+## Product Direction
+
+The product direction is now an operator-facing `EPANET + GIS + real-time pressure heatmap` platform. The dashboard should make a water network readable the way field engineers and utility operators expect: upload an EPANET `.inp` file, see the network on a map-like canvas, move through time, inspect pressure/flow/leak conditions, and run what-if actions without returning to the old EPANET desktop UI.
+
+The highest-impact MVP sequence is:
+
+1. EPANET `.inp` upload, GIS/network rendering, pressure and flow colormaps, and a time slider.
+2. SCADA-style live telemetry, leak detection, and event alarms.
+3. Digital twin synchronization, AI failure prediction, and operating optimization.
+
+The current frontend therefore emphasizes GIS heatmap status, virtual SCADA health, leak probability, and digital-twin readiness before deeper asset editing tools.
+
 ## Why Aging-Aware Control Matters
 
 Traditional pressure control can fix low-pressure nodes by raising pump head everywhere. In an old network, that can move risk into fragile pipe corridors by increasing leak and burst exposure. This project keeps both constraints visible:
@@ -60,6 +72,9 @@ This is the primary shareable dashboard. It embeds the same HTML, CSS, JavaScrip
 The dashboard includes:
 
 - 10-minute time playback with play and speed controls.
+- EPANET `.inp` upload and parsing into dashboard-ready nodes, pipes, reservoirs, and pumps.
+- GIS-style operating console for pressure heatmap, SCADA health, leak probability, and digital-twin readiness.
+- Map layer toggles for pressure, leak probability, DMA, and asset risk.
 - Demand, source-head, pump-head, and multi-leak scenario controls.
 - Editable junction and pipe assets.
 - CAD-like pipe drawing and deletion.
@@ -98,7 +113,7 @@ You can also run the explicit app file:
 streamlit run app/streamlit_html_dashboard.py
 ```
 
-This Streamlit entrypoint embeds the HTML dashboard directly from `frontend/index.html`, `frontend/styles.css`, and `frontend/app.js`. On Streamlit Cloud, drawing recognition is handled directly by Streamlit/Python from the sidebar upload control, then injected into the embedded dashboard as recognized network assets. This avoids localhost iframe URLs such as `127.0.0.1:5173`, which are not reachable from mobile or public Streamlit sessions.
+This Streamlit entrypoint embeds the HTML dashboard directly from `frontend/index.html`, `frontend/styles.css`, and `frontend/app.js`. The primary model intake is now the in-browser EPANET `.inp` parser, so users can convert an INP model into dashboard assets without a localhost-only recognition service.
 
 You can also run the same server directly without Streamlit:
 
@@ -115,30 +130,23 @@ For Streamlit Community Cloud:
 
 The embedded HTML dashboard currently uses the mock data bundled in this repository. Runtime edits inside the map are browser-session state, so they are useful for design simulation and demonstrations but are not persisted to a database yet.
 
-## Run JPG/PNG Drawing Recognition
+## EPANET INP Import
 
-To test the first image-recognition pipeline for water-network drawings:
+The primary import path is now EPANET `.inp`.
 
-```bash
-streamlit run app/drawing_recognition_app.py
-```
+Upload an `.inp` file from the `INP 업로드` workspace. The frontend parses EPANET sections directly:
 
-For Streamlit Community Cloud, create a second app from the same GitHub repository and set its main file path to:
+- `[JUNCTIONS]` and `[RESERVOIRS]` become dashboard nodes and source heads.
+- `[PIPES]` become editable pipe assets.
+- `[PUMPS]` become pump assets and pump-link connectors for map continuity.
+- `[COORDINATES]` and `[VERTICES]` preserve the original EPANET layout when present.
 
-```text
-app/drawing_recognition_app.py
-```
+The import output can be downloaded as dashboard-ready JSON or CSV:
 
-This tool accepts `.jpg`, `.jpeg`, `.png`, `.pdf`, `.dwg`, and `.dxf` drawings. Uploads are routed by file type: JPG/PNG use Gemini Vision semantic hints plus geometry candidates, PDF uses vector geometry/text extraction first with scanned-page image fallback when a PDF renderer is installed, and DWG/DXF use the CAD parsing route for layer/block/polyline/text-oriented extraction.
-
-The recognition output also creates dashboard-ready asset candidates:
-
-- `recognized_network_assets.json`: nodes, pipes, virtual reservoir, and warnings.
-- `nodes.csv`: first-pass junction/reservoir coordinates for the HTML dashboard.
-- `pipes.csv`: first-pass pipe endpoints, length, diameter, material, and aging metadata.
-- `reservoirs.csv`: a virtual source reservoir for previewing the imported network.
-
-The recognition pipeline should be treated as a drafting assistant. Gemini, geometry candidates, PDF/CAD vector extraction, and topology reconstruction provide a first editable network that should still be checked and refined on the dashboard before use.
+- `recognized_network_assets.json`
+- `nodes.csv`
+- `pipes.csv`
+- `reservoirs.csv`
 
 ## Dynamic Household Demand
 

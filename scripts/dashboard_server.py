@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import base64
 import json
 import mimetypes
 import sys
@@ -13,19 +12,75 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
 
+import pandas as pd
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from aging_water_network.vision import (  # noqa: E402
-    build_dashboard_assets_from_recognition,
-    call_gemini_vision,
-    recognize_drawing_file,
-    semantic_samples_from_gemini,
-    validate_recognition_quality,
-)
+from aging_water_network.control.controller import rank_control_recommendations  # noqa: E402
+from aging_water_network.data.validators import REQUIRED_COLUMNS  # noqa: E402
+from aging_water_network.hydraulics.source_pump_optimizer import predict_source_pump_operation  # noqa: E402
+from aging_water_network.hydraulics.simulator import run_hydraulic_simulation  # noqa: E402
+
+
+NUMERIC_COLUMN_DEFAULTS: dict[str, dict[str, float]] = {
+    "nodes": {
+        "x": 0.0,
+        "y": 0.0,
+        "elevation_m": 0.0,
+        "base_demand_lps": 0.0,
+    },
+    "pipes": {
+        "length_m": 100.0,
+        "diameter_mm": 100.0,
+        "install_year": 2015.0,
+        "bend_count": 0.0,
+        "valve_count": 0.0,
+        "repair_count": 0.0,
+        "leak_history_count": 0.0,
+        "soil_ph": 7.0,
+        "soil_resistivity_ohm_cm": 5000.0,
+        "traffic_load_index": 1.0,
+        "burst_history_count": 0.0,
+    },
+    "valves": {
+        "operation_count_last_year": 0.0,
+        "minor_loss_k": 0.0,
+    },
+    "pumps": {
+        "base_head_gain_m": 0.0,
+        "speed_multiplier": 1.0,
+    },
+    "reservoirs": {
+        "head_m": 50.0,
+    },
+    "tanks": {
+        "min_level_m": 0.0,
+        "max_level_m": 10.0,
+        "initial_level_m": 5.0,
+    },
+    "sensors": {
+        "noise_std": 0.0,
+    },
+    "sensor_timeseries": {
+        "value": 0.0,
+    },
+    "demand_patterns": {
+        "hour": 0.0,
+        "multiplier": 1.0,
+    },
+    "households": {
+        "occupants": 1.0,
+        "base_demand_lps": 0.0,
+        "peaking_factor": 1.0,
+    },
+    "household_demand_timeseries": {
+        "demand_lps": 0.0,
+    },
+}
 
 
 class DashboardRequestHandler(BaseHTTPRequestHandler):
@@ -54,12 +109,12 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802 - stdlib hook
         route = unquote(urlparse(self.path).path)
-        if route != "/api/recognize-drawing":
+        if route != "/api/simulate-network":
             self.send_error(HTTPStatus.NOT_FOUND, "missing")
             return
         try:
             request = self._read_json_body()
-            self._send_json(_recognize_drawing(request))
+            self._send_json(_simulate_network(request))
         except Exception as exc:  # pragma: no cover - runtime protection
             self._send_json({"error": str(exc)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
 
@@ -116,127 +171,6 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
         self.send_header("access-control-allow-origin", "*")
         self.send_header("access-control-allow-private-network", "true")
 
-
-def _recognize_drawing(request: dict[str, Any]) -> dict[str, Any]:
-    file_bytes = base64.b64decode(request.get("file_base64") or request.get("image_base64") or "")
-    mime_type = str(request.get("mime_type") or "")
-    filename = str(request.get("filename") or "")
-    pipe_candidate_samples = (
-        request.get("pipe_style_samples")
-        if isinstance(request.get("pipe_style_samples"), list)
-        else request.get("pipe_candidate_samples")
-        if isinstance(request.get("pipe_candidate_samples"), list)
-        else None
-    )
-    junction_anchor_samples = request.get("junction_anchor_samples") if isinstance(request.get("junction_anchor_samples"), list) else None
-    source_pump_candidate_samples = (
-        request.get("source_pump_candidate_samples")
-        if isinstance(request.get("source_pump_candidate_samples"), list)
-        else None
-    )
-    drawing_file_type, recognition_result = recognize_drawing_file(
-        file_bytes,
-        filename=filename,
-        mime_type=mime_type,
-        min_line_length=int(float(request.get("min_line_length") or 45)),
-        merge_tolerance_px=float(request.get("merge_tolerance_px") or 18),
-        pipe_style_samples=pipe_candidate_samples,
-        junction_anchor_samples=junction_anchor_samples,
-        source_pump_candidate_samples=source_pump_candidate_samples,
-    )
-    gemini_result = None
-    fusion_samples: dict[str, Any] = {}
-    if drawing_file_type == "image" and bool(request.get("use_gemini", True)):
-        gemini_result = call_gemini_vision(file_bytes, _image_mime_for_request(filename, mime_type))
-        fusion_samples = semantic_samples_from_gemini(
-            gemini_result.parsed_json if gemini_result else None,
-            image_width=recognition_result.width,
-            image_height=recognition_result.height,
-        )
-        source_pump_candidate_samples = [
-            *(source_pump_candidate_samples or []),
-            *fusion_samples.get("source_pump_candidate_samples", []),
-        ]
-        if (
-            not gemini_result.error
-            and bool(request.get("use_gemini_fusion", True))
-            and (
-                fusion_samples.get("junction_anchor_samples")
-                or fusion_samples.get("pipe_candidate_samples")
-            )
-        ):
-            combined_junction_samples = [
-                *(junction_anchor_samples or []),
-                *fusion_samples.get("junction_anchor_samples", []),
-            ]
-            combined_pipe_samples = [
-                *(pipe_candidate_samples or []),
-                *fusion_samples.get("pipe_candidate_samples", []),
-            ]
-            combined_source_samples = [
-                *(source_pump_candidate_samples or []),
-            ]
-            drawing_file_type, recognition_result = recognize_drawing_file(
-                file_bytes,
-                filename=filename,
-                mime_type=mime_type,
-                min_line_length=int(float(request.get("min_line_length") or 45)),
-                merge_tolerance_px=float(request.get("merge_tolerance_px") or 18),
-                pipe_candidate_samples=combined_pipe_samples,
-                junction_anchor_samples=combined_junction_samples,
-                source_pump_candidate_samples=combined_source_samples,
-            )
-            source_pump_candidate_samples = combined_source_samples
-
-    assets = build_dashboard_assets_from_recognition(
-        recognition_result,
-        scale_m_per_px=float(request.get("scale_m_per_px") or 1),
-        default_diameter_mm=float(request.get("default_diameter_mm") or 150),
-        default_material=str(request.get("default_material") or "PVC"),
-        include_virtual_reservoir=True,
-        source_pump_candidate_samples=source_pump_candidate_samples,
-    )
-
-    payload = json.loads(recognition_result.binary_payload.decode("utf-8"))
-    semantic_hints = payload.get("semantic_hints") or {}
-    if gemini_result is not None:
-        semantic_hints = {
-            "source": "gemini",
-            "parsed_json": gemini_result.parsed_json,
-            "error": gemini_result.error,
-            "fusion_samples": fusion_samples,
-        }
-    quality_report = payload.get("quality_report") or validate_recognition_quality(
-        payload.get("nodes", []),
-        payload.get("pipes", []),
-        image_width=recognition_result.width,
-        image_height=recognition_result.height,
-        semantic_hints=gemini_result.parsed_json if gemini_result else None,
-    )
-    return {
-        "recognition": {
-            "file_type": drawing_file_type,
-            "cad_format": getattr(recognition_result, "cad_format", None),
-            "pdf_mode": getattr(recognition_result, "pdf_mode", None),
-            "filename": filename,
-            "mime_type": mime_type,
-            "width": recognition_result.width,
-            "height": recognition_result.height,
-            "segments": recognition_result.line_segments,
-            "nodes": payload.get("nodes", []),
-            "node_candidates": recognition_result.node_candidates,
-            "pipe_candidates": recognition_result.pipe_candidates,
-            "low_confidence_pipes": payload.get("low_confidence_pipes", []),
-            "semantic_hints": semantic_hints,
-            "quality_report": quality_report,
-            "summary": recognition_result.summary(),
-            "gemini": _gemini_to_dict(gemini_result),
-            "warnings": payload.get("cad_warnings", []) + payload.get("pdf_warnings", []) + assets.warnings,
-        },
-        "assets": assets.to_dict(),
-    }
-
-
 def _health_payload() -> dict[str, Any]:
     return {
         "ok": True,
@@ -245,25 +179,151 @@ def _health_payload() -> dict[str, Any]:
     }
 
 
-def _gemini_to_dict(result: Any) -> dict[str, Any] | None:
-    if result is None:
-        return None
+def _simulate_network(request: dict[str, Any]) -> dict[str, Any]:
+    tables = _tables_from_request(request.get("tables") if isinstance(request.get("tables"), dict) else request)
+    scenario = request.get("scenario") if isinstance(request.get("scenario"), dict) else {}
+    source_head_m = _optional_float(scenario.get("source_head_m"))
+    pump_head_m = _optional_float(scenario.get("pump_head_m"))
+    demand_multiplier = float(scenario.get("demand_multiplier") or 1.0)
+
+    if source_head_m is not None and not tables["reservoirs"].empty:
+        tables["reservoirs"].loc[tables["reservoirs"].index[0], "head_m"] = source_head_m
+    if pump_head_m is not None and not tables["pumps"].empty:
+        active_index = tables["pumps"].index[0]
+        tables["pumps"].loc[active_index, "base_head_gain_m"] = pump_head_m
+        tables["pumps"].loc[active_index, "speed_multiplier"] = 1.0
+
+    _apply_leaks_to_tables(tables, scenario.get("leaks") if isinstance(scenario.get("leaks"), list) else [])
+    simulation = run_hydraulic_simulation(
+        tables=tables,
+        demand_multiplier=demand_multiplier,
+        prefer_wntr=False,
+    )
+    recommendations = rank_control_recommendations(
+        tables=tables,
+        max_recommendations=5,
+    )
+    source_pump_prediction = predict_source_pump_operation(
+        tables,
+        demand_multiplier=demand_multiplier,
+    )
+    metadata = simulation.get("metadata", {})
     return {
-        "model": result.model,
-        "parsed_json": result.parsed_json,
-        "raw_text": result.raw_text,
-        "error": result.error,
+        "engine": metadata.get("solver", "epanet_formula_fallback"),
+        "hydraulic_formula": metadata.get("hydraulic_formula", "H-W"),
+        "node_results": _records(simulation["node_results"]),
+        "pipe_results": _records(simulation["pipe_results"]),
+        "pressure_violations": _records(simulation.get("pressure_violations", pd.DataFrame())),
+        "headloss_alerts": _records(simulation.get("headloss_alerts", pd.DataFrame())),
+        "aged_pressure_stress": _records(simulation.get("aged_pressure_stress", pd.DataFrame())),
+        "recommendations": [item.to_dict() for item in recommendations],
+        "source_pump_prediction": source_pump_prediction,
+        "summary": simulation.get("summary", {}),
+        "warnings": ["EPANET 2.2 headloss equations are used in the local solver; the compiled EPANET Toolkit/GGA engine is not linked yet."],
     }
 
 
-def _image_mime_for_request(filename: str, mime_type: str) -> str:
-    normalized_mime = (mime_type or "").split(";")[0].strip().lower()
-    if normalized_mime in {"image/jpeg", "image/png"}:
-        return normalized_mime
-    suffix = Path(filename).suffix.lower()
-    if suffix in {".jpg", ".jpeg"}:
-        return "image/jpeg"
-    return "image/png"
+def _tables_from_request(payload: Any) -> dict[str, pd.DataFrame]:
+    source = payload if isinstance(payload, dict) else {}
+    tables = {
+        "nodes": pd.DataFrame(source.get("nodes") or []),
+        "pipes": pd.DataFrame(source.get("pipes") or []),
+        "reservoirs": pd.DataFrame(source.get("reservoirs") or []),
+        "pumps": pd.DataFrame(source.get("pumps") or []),
+        "valves": pd.DataFrame(source.get("valves") or []),
+        "options": pd.DataFrame(source.get("options") or []),
+    }
+    for table_name, columns in REQUIRED_COLUMNS.items():
+        if table_name not in tables:
+            tables[table_name] = pd.DataFrame(columns=sorted(columns))
+        else:
+            for column in columns:
+                if column not in tables[table_name].columns:
+                    tables[table_name][column] = _default_column_value(table_name, column, len(tables[table_name]))
+    if not tables["reservoirs"].empty and "reservoir_id" in tables["reservoirs"].columns:
+        missing = tables["reservoirs"]["reservoir_id"].astype(str).isin({"", "nan", "None"})
+        tables["reservoirs"].loc[missing, "reservoir_id"] = [
+            f"RES_API_{index + 1}" for index in range(int(missing.sum()))
+        ]
+    _coerce_table_columns(tables)
+    return tables
+
+
+def _default_column_value(table_name: str, column: str, length: int) -> Any:
+    if table_name == "reservoirs" and column == "reservoir_id":
+        return [f"RES_API_{index + 1}" for index in range(length)]
+    if column in NUMERIC_COLUMN_DEFAULTS.get(table_name, {}):
+        return NUMERIC_COLUMN_DEFAULTS[table_name][column]
+    if table_name == "nodes" and column == "node_type":
+        return "junction"
+    if table_name == "nodes" and column == "dma_id":
+        return "DMA-1"
+    if table_name == "pipes" and column == "material":
+        return "unknown"
+    if column in {"status"}:
+        return "on"
+    if column in {"valve_type"}:
+        return "isolation"
+    return ""
+
+
+def _coerce_table_columns(tables: dict[str, pd.DataFrame]) -> None:
+    for table_name, defaults in NUMERIC_COLUMN_DEFAULTS.items():
+        frame = tables.get(table_name)
+        if frame is None or frame.empty:
+            continue
+        for column, default in defaults.items():
+            if column in frame.columns:
+                frame[column] = pd.to_numeric(frame[column], errors="coerce").fillna(default)
+
+
+def _apply_leaks_to_tables(tables: dict[str, pd.DataFrame], leaks: list[Any]) -> None:
+    if tables["nodes"].empty or tables["pipes"].empty:
+        return
+    for leak in leaks:
+        if not isinstance(leak, dict):
+            continue
+        pipe_id = str(leak.get("pipe_id") or "")
+        demand = max(float(leak.get("demand_lps") or 0.0), 0.0)
+        if not pipe_id or demand <= 0:
+            continue
+        match = tables["pipes"][tables["pipes"]["pipe_id"].astype(str).eq(pipe_id)]
+        if match.empty:
+            continue
+        leak_node = str(match.iloc[0]["to_node"])
+        mask = tables["nodes"]["node_id"].astype(str).eq(leak_node)
+        tables["nodes"].loc[mask, "base_demand_lps"] = (
+            pd.to_numeric(tables["nodes"].loc[mask, "base_demand_lps"], errors="coerce").fillna(0.0)
+            + demand
+        )
+
+
+def _optional_float(value: Any) -> float | None:
+    try:
+        return None if value is None or value == "" else float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _records(frame: Any) -> list[dict[str, Any]]:
+    if not isinstance(frame, pd.DataFrame) or frame.empty:
+        return []
+    records = frame.to_dict("records")
+    return [
+        {key: _json_value(value) for key, value in record.items()}
+        for record in records
+    ]
+
+
+def _json_value(value: Any) -> Any:
+    if isinstance(value, (list, dict, str, int, bool)) or value is None:
+        return value
+    if isinstance(value, float):
+        return None if pd.isna(value) else value
+    try:
+        return None if pd.isna(value) else value
+    except (TypeError, ValueError):
+        return value
 
 
 def _is_relative_to(path: Path, parent: Path) -> bool:
