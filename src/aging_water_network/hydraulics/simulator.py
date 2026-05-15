@@ -12,8 +12,13 @@ import pandas as pd
 from aging_water_network.aging.roughness import compute_hydraulic_params
 from aging_water_network.aging.scoring import compute_all_aging_scores
 from aging_water_network.data.loaders import ensure_mock_data
-from aging_water_network.data.validators import validate_mock_data
-from aging_water_network.hydraulics.headloss import hazen_williams_headloss_m
+from aging_water_network.data.validators import REQUIRED_COLUMNS, validate_mock_data
+from aging_water_network.hydraulics.headloss import (
+    epanet_flow_from_headloss_lps,
+    epanet_headloss_gradient_m_per_lps,
+    epanet_headloss_m,
+    epanet_pipe_resistance,
+)
 from aging_water_network.hydraulics.pressure_checks import detect_aged_pipe_pressure_stress, detect_pressure_violations
 from aging_water_network.topology.criticality import compute_pipe_criticality
 
@@ -25,7 +30,7 @@ MATERIAL_BASE_C = {
     "steel": 115.0,
     "cast_iron": 100.0,
 }
-FALLBACK_HEADLOSS_CALIBRATION = 16.0
+DEFAULT_HEADLOSS_FORMULA = "H-W"
 
 
 def _normalize(series: pd.Series) -> pd.Series:
@@ -75,6 +80,16 @@ def _pump_gain_by_edge(tables: Mapping[str, pd.DataFrame]) -> dict[tuple[str, st
     return gains
 
 
+def _headloss_formula(tables: Mapping[str, pd.DataFrame]) -> str:
+    options = tables.get("options", pd.DataFrame())
+    if isinstance(options, pd.DataFrame) and not options.empty:
+        for column in ("headloss", "HEADLOSS", "Headloss"):
+            if column in options.columns:
+                value = str(options[column].iloc[0])
+                return value if value else DEFAULT_HEADLOSS_FORMULA
+    return DEFAULT_HEADLOSS_FORMULA
+
+
 def _valve_status_by_pipe(valves: pd.DataFrame) -> dict[str, str]:
     statuses: dict[str, str] = {}
     if valves.empty:
@@ -92,6 +107,7 @@ def _build_hydraulic_graph(
     pipes: pd.DataFrame,
     params: pd.DataFrame,
     valve_status_by_pipe: Mapping[str, str] | None = None,
+    formula: str = DEFAULT_HEADLOSS_FORMULA,
 ) -> nx.Graph:
     param_lookup = params.set_index("pipe_id").to_dict("index")
     status_lookup = dict(valve_status_by_pipe or {})
@@ -101,11 +117,160 @@ def _build_hydraulic_graph(
         param = param_lookup[pipe_id]
         status = status_lookup.get(pipe_id, "open")
         status_multiplier = {"open": 1.0, "partially_open": 30.0, "closed": 1_000_000.0}.get(status, 1.0)
-        resistance = float(row["length_m"]) / (
-            max(float(param["adjusted_roughness_c"]), 1.0) ** 1.852 * max(float(row["diameter_mm"]) / 1000.0, 1e-6) ** 4.871
-        ) * status_multiplier
+        resistance, _exponent, _friction = epanet_pipe_resistance(
+            float(row["length_m"]),
+            float(row["diameter_mm"]),
+            _pipe_roughness(row, param, formula),
+            formula=formula,
+            flow_lps=max(float(row.get("design_flow_lps", row.get("base_flow_lps", 1.0))) or 1.0, 1.0),
+        )
+        resistance = resistance * status_multiplier
         graph.add_edge(str(row["from_node"]), str(row["to_node"]), weight=resistance, valve_status=status, **row)
     return graph
+
+
+def _pipe_minor_loss(pipe: Mapping[str, object], param: Mapping[str, object]) -> float:
+    return float(param.get("minor_loss_k", pipe.get("minor_loss_k", 0.0)) or 0.0)
+
+
+def _pipe_roughness(pipe: Mapping[str, object], param: Mapping[str, object], formula: str) -> float:
+    if formula.upper().replace("_", "-") in {"D-W", "DW", "DARCY-WEISBACH"}:
+        return float(pipe.get("roughness_mm", pipe.get("roughness_c", param.get("adjusted_roughness_c", 0.1))) or 0.1)
+    if formula.upper().replace("_", "-") in {"C-M", "CM", "CHEZY-MANNING"}:
+        return float(pipe.get("manning_n", pipe.get("roughness_n", 0.013)) or 0.013)
+    return float(param.get("adjusted_roughness_c", pipe.get("roughness_c", 100.0)) or 100.0)
+
+
+def _pipe_flow_from_heads(
+    pipe: Mapping[str, object],
+    param: Mapping[str, object],
+    from_head_m: float,
+    to_head_m: float,
+    pump_gain_m: float,
+    formula: str,
+) -> float:
+    effective_headloss = float(from_head_m) + float(pump_gain_m) - float(to_head_m)
+    return epanet_flow_from_headloss_lps(
+        effective_headloss,
+        float(pipe["length_m"]),
+        float(pipe["diameter_mm"]),
+        _pipe_roughness(pipe, param, formula),
+        _pipe_minor_loss(pipe, param),
+        formula=formula,
+    )
+
+
+def _solve_epanet_formula_heads(
+    nodes: pd.DataFrame,
+    pipes: pd.DataFrame,
+    params: pd.DataFrame,
+    source_heads: Mapping[str, float],
+    pump_gain: Mapping[tuple[str, str], float],
+    formula: str,
+) -> tuple[dict[str, float], dict[str, float], bool]:
+    """Solve fixed-demand heads with EPANET pipe formulas and Newton iterations."""
+
+    node_ids = nodes["node_id"].astype(str).tolist()
+    fixed_heads = {str(node_id): float(head) for node_id, head in source_heads.items()}
+    unknown_ids = [node_id for node_id in node_ids if node_id not in fixed_heads]
+    if not unknown_ids:
+        return fixed_heads, {}, True
+
+    demand = nodes.set_index("node_id")["base_demand_lps"].astype(float).to_dict()
+    pipe_records = pipes.to_dict("records")
+    param_lookup = params.set_index("pipe_id").to_dict("index")
+    unknown_index = {node_id: index for index, node_id in enumerate(unknown_ids)}
+    max_source_head = max(fixed_heads.values()) if fixed_heads else 60.0
+    initial = np.array(
+        [
+            max_source_head - float(nodes.loc[nodes["node_id"].astype(str).eq(node_id), "elevation_m"].iloc[0]) * 0.05
+            for node_id in unknown_ids
+        ],
+        dtype=float,
+    )
+
+    def unpack(values: np.ndarray) -> dict[str, float]:
+        heads = dict(fixed_heads)
+        heads.update({node_id: float(values[index]) for node_id, index in unknown_index.items()})
+        return heads
+
+    def residual_and_jacobian(values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        heads = unpack(values)
+        balance = {node_id: float(demand.get(node_id, 0.0)) for node_id in unknown_ids}
+        jacobian = np.zeros((len(unknown_ids), len(unknown_ids)), dtype=float)
+        for pipe in pipe_records:
+            pipe_id = str(pipe["pipe_id"])
+            from_node = str(pipe["from_node"])
+            to_node = str(pipe["to_node"])
+            param = param_lookup[pipe_id]
+            gain = pump_gain.get((from_node, to_node), 0.0) - pump_gain.get((to_node, from_node), 0.0)
+            flow = _pipe_flow_from_heads(
+                pipe,
+                param,
+                heads.get(from_node, max_source_head),
+                heads.get(to_node, max_source_head),
+                gain,
+                formula,
+            )
+            dqdh = 1.0 / epanet_headloss_gradient_m_per_lps(
+                flow,
+                float(pipe["length_m"]),
+                float(pipe["diameter_mm"]),
+                _pipe_roughness(pipe, param, formula),
+                _pipe_minor_loss(pipe, param),
+                formula=formula,
+            )
+            if from_node in balance:
+                balance[from_node] += flow
+                row = unknown_index[from_node]
+                if from_node in unknown_index:
+                    jacobian[row, unknown_index[from_node]] += dqdh
+                if to_node in unknown_index:
+                    jacobian[row, unknown_index[to_node]] -= dqdh
+            if to_node in balance:
+                balance[to_node] -= flow
+                row = unknown_index[to_node]
+                if from_node in unknown_index:
+                    jacobian[row, unknown_index[from_node]] -= dqdh
+                if to_node in unknown_index:
+                    jacobian[row, unknown_index[to_node]] += dqdh
+        return np.array([balance[node_id] for node_id in unknown_ids], dtype=float), jacobian
+
+    heads_vector = initial
+    converged = False
+    for _ in range(40):
+        current, jacobian = residual_and_jacobian(heads_vector)
+        if float(np.linalg.norm(current, ord=np.inf)) < 1e-5:
+            converged = True
+            break
+        try:
+            delta = np.linalg.solve(jacobian, -current)
+        except np.linalg.LinAlgError:
+            delta = np.linalg.lstsq(jacobian, -current, rcond=None)[0]
+        max_step = float(np.max(np.abs(delta))) if len(delta) else 0.0
+        if max_step > 20.0:
+            delta *= 20.0 / max_step
+        heads_vector = heads_vector + delta
+        if float(np.linalg.norm(delta, ord=np.inf)) < 1e-6:
+            converged = True
+            break
+
+    heads = unpack(heads_vector)
+    flows: dict[str, float] = {}
+    for pipe in pipe_records:
+        pipe_id = str(pipe["pipe_id"])
+        from_node = str(pipe["from_node"])
+        to_node = str(pipe["to_node"])
+        gain = pump_gain.get((from_node, to_node), 0.0) - pump_gain.get((to_node, from_node), 0.0)
+        flows[pipe_id] = _pipe_flow_from_heads(
+            pipe,
+            param_lookup[pipe_id],
+            heads.get(from_node, max_source_head),
+            heads.get(to_node, max_source_head),
+            gain,
+            formula,
+        )
+    return heads, flows, converged
 
 
 def _tree_edge_demands(
@@ -142,9 +307,16 @@ def run_fallback_simulation(
     valve_status_overrides: Mapping[str, str] | None = None,
     include_minor_losses: bool = True,
 ) -> dict[str, pd.DataFrame | dict[str, object]]:
-    """Run a deterministic pressure/flow approximation without WNTR."""
+    """Run a deterministic EPANET-formula hydraulic approximation without WNTR."""
 
     copied_tables = {name: frame.copy() for name, frame in tables.items()}
+    for table_name, columns in REQUIRED_COLUMNS.items():
+        if table_name not in copied_tables:
+            copied_tables[table_name] = pd.DataFrame(columns=sorted(columns))
+        else:
+            for column in columns:
+                if column not in copied_tables[table_name].columns:
+                    copied_tables[table_name][column] = pd.Series(dtype=object)
     copied_tables["nodes"]["base_demand_lps"] = copied_tables["nodes"]["base_demand_lps"].astype(float) * float(demand_multiplier)
     validate_mock_data(copied_tables)
 
@@ -183,34 +355,45 @@ def run_fallback_simulation(
         pipe_params["minor_loss_k"] = 0.0
     pipe_params = pipe_params.merge(aging_scores[["pipe_id", "aging_score"]], on="pipe_id", how="left")
     status_by_pipe = _valve_status_by_pipe(effective_valves)
+    formula = _headloss_formula(copied_tables)
 
-    graph = _build_hydraulic_graph(pipes, pipe_params, status_by_pipe)
+    graph = _build_hydraulic_graph(pipes, pipe_params, status_by_pipe, formula=formula)
     source_heads = _source_heads(copied_tables, source_head_delta_m=source_head_delta_m)
     root = max(source_heads, key=lambda node_id: source_heads[node_id])
-    parent, edge_demands = _tree_edge_demands(graph, root, copied_tables["nodes"])
     pump_gain = _pump_gain_by_edge(copied_tables)
     param_lookup = pipe_params.set_index("pipe_id").to_dict("index")
-
-    hgl = {root: source_heads[root]}
-    distances = nx.single_source_dijkstra_path_length(graph, root, weight="weight")
-    path_order = sorted(distances, key=distances.get)
-    for node_id in path_order:
-        if node_id == root or node_id not in parent:
-            continue
-        parent_id = parent[node_id]
-        edge = graph[parent_id][node_id]
-        flow = edge_demands.get((parent_id, node_id), 0.0)
-        param = param_lookup[edge["pipe_id"]]
-        loss = FALLBACK_HEADLOSS_CALIBRATION * abs(
-            hazen_williams_headloss_m(
-                flow,
-                edge["length_m"],
-                edge["diameter_mm"],
-                param["adjusted_roughness_c"],
-                param["minor_loss_k"],
+    hgl, solved_flows, converged = _solve_epanet_formula_heads(
+        copied_tables["nodes"],
+        pipes,
+        pipe_params,
+        source_heads,
+        pump_gain,
+        formula,
+    )
+    if not converged:
+        parent, edge_demands = _tree_edge_demands(graph, root, copied_tables["nodes"])
+        hgl = {root: source_heads[root]}
+        distances = nx.single_source_dijkstra_path_length(graph, root, weight="weight")
+        path_order = sorted(distances, key=distances.get)
+        for node_id in path_order:
+            if node_id == root or node_id not in parent:
+                continue
+            parent_id = parent[node_id]
+            edge = graph[parent_id][node_id]
+            flow = edge_demands.get((parent_id, node_id), 0.0)
+            param = param_lookup[edge["pipe_id"]]
+            loss = abs(
+                epanet_headloss_m(
+                    flow,
+                    edge["length_m"],
+                    edge["diameter_mm"],
+                    _pipe_roughness(edge, param, formula),
+                    _pipe_minor_loss(edge, param),
+                    formula=formula,
+                )
             )
-        )
-        hgl[node_id] = hgl[parent_id] + pump_gain.get((parent_id, node_id), 0.0) - loss
+            hgl[node_id] = hgl[parent_id] + pump_gain.get((parent_id, node_id), 0.0) - loss
+        solved_flows = {}
 
     node_results = copied_tables["nodes"].copy()
     node_results["hydraulic_grade_m"] = node_results["node_id"].map(hgl).fillna(source_heads[root])
@@ -225,27 +408,35 @@ def run_fallback_simulation(
         from_node = str(row["from_node"])
         to_node = str(row["to_node"])
         pipe_id = str(row["pipe_id"])
-        if parent.get(to_node) == from_node:
-            flow = edge_demands.get((from_node, to_node), 0.0)
-        elif parent.get(from_node) == to_node:
-            flow = -edge_demands.get((to_node, from_node), 0.0)
-        else:
-            head_delta = float(hgl.get(from_node, source_heads[root]) - hgl.get(to_node, source_heads[root]))
-            flow = np.sign(head_delta) * min(abs(head_delta) * 0.35, 4.0)
         param = param_lookup[pipe_id]
-        loss = FALLBACK_HEADLOSS_CALIBRATION * hazen_williams_headloss_m(
+        flow = solved_flows.get(pipe_id)
+        if flow is None:
+            gain = pump_gain.get((from_node, to_node), 0.0) - pump_gain.get((to_node, from_node), 0.0)
+            flow = _pipe_flow_from_heads(
+                row,
+                param,
+                hgl.get(from_node, source_heads[root]),
+                hgl.get(to_node, source_heads[root]),
+                gain,
+                formula,
+            )
+        loss = epanet_headloss_m(
             flow,
             row["length_m"],
             row["diameter_mm"],
-            param["adjusted_roughness_c"],
-            param["minor_loss_k"],
+            _pipe_roughness(row, param, formula),
+            _pipe_minor_loss(row, param),
+            formula=formula,
         )
+        diameter_m = max(float(row["diameter_mm"]) / 1000.0, 1e-6)
+        velocity_mps = (abs(float(flow)) / 1000.0) / (np.pi * diameter_m**2 / 4.0)
         pipe_rows.append(
             {
                 **row,
                 **param,
                 "flow_lps": round(float(flow), 6),
                 "headloss_m": round(float(loss), 6),
+                "velocity_mps": round(float(velocity_mps), 6),
                 "headloss_gradient_m_per_km": round(abs(float(loss)) / max(float(row["length_m"]), 1.0) * 1000.0, 6),
                 "headloss_gradient": round(abs(float(loss)) / max(float(row["length_m"]), 1.0), 8),
                 "from_hydraulic_grade_m": round(float(hgl.get(from_node, source_heads[root])), 6),
@@ -268,12 +459,13 @@ def run_fallback_simulation(
         "pipe_params": pipe_params.sort_values("pipe_id").reset_index(drop=True),
         "metadata": {
             "engine": "fallback",
+            "hydraulic_formula": formula,
+            "solver": "epanet_formula_newton" if converged else "epanet_formula_tree_fallback",
             "source_node": root,
             "min_pressure_head_m": float(min_pressure_head_m),
             "demand_multiplier": float(demand_multiplier),
             "source_head_delta_m": float(source_head_delta_m),
             "include_minor_losses": bool(include_minor_losses),
-            "headloss_calibration": FALLBACK_HEADLOSS_CALIBRATION,
         },
     }
 

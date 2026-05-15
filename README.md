@@ -134,7 +134,7 @@ The embedded HTML dashboard currently uses the mock data bundled in this reposit
 
 The primary import path is now EPANET `.inp`.
 
-Upload an `.inp` file from the `INP 업로드` workspace. The frontend parses EPANET sections directly:
+Upload an `.inp` file from the `도면 .inp 업로드` workspace. The frontend parses EPANET sections directly:
 
 - `[JUNCTIONS]` and `[RESERVOIRS]` become dashboard nodes and source heads.
 - `[PIPES]` become editable pipe assets.

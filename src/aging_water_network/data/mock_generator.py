@@ -21,7 +21,7 @@ def _junction_id(row: int, col: int, cols: int) -> str:
 def _scenario_source_head(scenario: str) -> float:
     return {
         "normal": 76.0,
-        "aging_headloss": 62.5,
+        "aging_headloss": 45.0,
         "suspected_leak": 66.0,
         "overpressure_aged": 90.0,
     }.get(scenario, 64.0)
