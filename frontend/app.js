@@ -985,6 +985,7 @@ function parseEpanetInp(text, options = {}) {
   const coordinateScale = Number(options.coordinateScale || 1);
   const coordinates = parseEpanetCoordinates(sections.COORDINATES, unit, coordinateScale);
   const vertices = parseEpanetVertices(sections.VERTICES, unit, coordinateScale);
+  const curves = parseEpanetCurves(sections.CURVES, unit);
   const warnings = [];
 
   const junctions = (sections.JUNCTIONS || []).map((line, index) => {
@@ -1065,6 +1066,7 @@ function parseEpanetInp(text, options = {}) {
       const pumpId = String(row[0] || `PU_INP_${index + 1}`);
       const fromNode = String(row[1] || "");
       const toNode = String(row[2] || "");
+      const pumpCurve = epanetPumpHeadCurve(row, curves);
       if (nodeIds.has(fromNode) && nodeIds.has(toNode)) {
         pumpConnectorPipes.push(inpPumpConnectorPipe(pumpId, fromNode, toNode, nodes, options.defaultDiameterMm || 300));
       }
@@ -1072,7 +1074,11 @@ function parseEpanetInp(text, options = {}) {
         pump_id: pumpId,
         from_node: fromNode,
         to_node: toNode,
-        base_head_gain_m: 3,
+        base_head_gain_m: pumpCurve?.reference_head_m ?? 3,
+        pump_curve_id: pumpCurve?.curve_id || "",
+        pump_curve_kind: pumpCurve ? "HEAD" : "",
+        pump_curve_points: pumpCurve?.points || [],
+        curve_reference_head_m: pumpCurve?.reference_head_m ?? null,
         speed_multiplier: 1,
         status: "on",
         source: "inp",
@@ -1116,6 +1122,47 @@ function parseEpanetInp(text, options = {}) {
     },
     assets,
   };
+}
+
+function parseEpanetCurves(rows = [], unit = epanetUnitProfile("GPM")) {
+  const curves = new Map();
+  (rows || []).forEach((line) => {
+    const row = epanetTokens(line);
+    if (row.length < 3) return;
+    const curveId = String(row[0] || "");
+    const sourceFlow = numberOr(row[1], NaN);
+    const sourceHead = numberOr(row[2], NaN);
+    if (!curveId || !Number.isFinite(sourceFlow) || !Number.isFinite(sourceHead)) return;
+    if (!curves.has(curveId)) curves.set(curveId, []);
+    curves.get(curveId).push({
+      flow_lps: unit.flowToLps(sourceFlow),
+      head_m: unit.headToM(sourceHead),
+      source_flow: sourceFlow,
+      source_head: sourceHead,
+    });
+  });
+  curves.forEach((points) => points.sort((a, b) => Number(a.flow_lps || 0) - Number(b.flow_lps || 0)));
+  return curves;
+}
+
+function epanetPumpHeadCurve(tokens, curves) {
+  const headIndex = tokens.findIndex((token) => String(token || "").toUpperCase() === "HEAD");
+  if (headIndex < 0 || headIndex + 1 >= tokens.length) return null;
+  const curveId = String(tokens[headIndex + 1] || "");
+  const points = (curves.get(curveId) || []).filter((point) => Number.isFinite(Number(point.head_m)));
+  if (!points.length) return null;
+  return {
+    curve_id: curveId,
+    points,
+    reference_head_m: representativePumpCurveHead(points),
+  };
+}
+
+function representativePumpCurveHead(points) {
+  const positiveFlowPoints = points.filter((point) => Number(point.flow_lps || 0) > 0);
+  const candidates = positiveFlowPoints.length ? positiveFlowPoints : points;
+  const middleIndex = Math.floor((candidates.length - 1) / 2);
+  return Number(candidates[middleIndex]?.head_m || points[0]?.head_m || 3);
 }
 
 function epanetSections(text) {
@@ -1379,7 +1426,9 @@ function applyRecognitionAssetsToDashboard(assets) {
     $("source-junction").value = firstNode;
   }
   $("source-head").value = Number(state.reservoirs[0]?.head_m || 58);
-  $("pump-head").value = 0;
+  const activePump = state.pumps.find((pump) => String(pump.status || "on").toLowerCase() !== "off");
+  $("pump-head").value = activePump ? Number(activePump.base_head_gain_m || 0) * Number(activePump.speed_multiplier || 1) : 0;
+  syncSourceControlLabels();
   $("recognized-export-state").textContent = "검토 결과 반영";
   updateRecognitionStatus("관망 적용 완료", `${normalizedAssets.pipes.length} pipes / ${normalizedAssets.nodes.length} nodes`);
   updateDrawReadout("INP 관망이 관망맵에 반영되었습니다. Pipe/Junction 패널에서 세부 값을 편집하세요.");
@@ -1484,6 +1533,10 @@ function normalizeDashboardAssetsForEditing(assets) {
       from_node: String(pump.from_node),
       to_node: String(pump.to_node),
       base_head_gain_m: Number(pump.base_head_gain_m ?? 3),
+      pump_curve_id: String(pump.pump_curve_id || ""),
+      pump_curve_kind: String(pump.pump_curve_kind || ""),
+      pump_curve_points: Array.isArray(pump.pump_curve_points) ? pump.pump_curve_points : [],
+      curve_reference_head_m: pump.curve_reference_head_m == null ? null : Number(pump.curve_reference_head_m),
       speed_multiplier: Number(pump.speed_multiplier ?? 1),
       status: String(pump.status || "on"),
     }));
@@ -2011,6 +2064,7 @@ async function runSourcePumpOptimization() {
 }
 
 async function runHydraulicSimulationRequest(mode = "analysis") {
+  if (state.backendSimulationPending) return;
   const analysisButton = $("run-backend-simulation");
   const optimizeButton = $("optimize-source-pump");
   const button = mode === "optimization" ? optimizeButton : analysisButton;
@@ -2022,7 +2076,9 @@ async function runHydraulicSimulationRequest(mode = "analysis") {
   state.sourcePumpOptimizationPending = mode === "optimization";
   if (analysisButton) analysisButton.disabled = true;
   if (optimizeButton) optimizeButton.disabled = true;
+  setHydraulicActionBusy(mode === "optimization");
   if (status) status.textContent = mode === "optimization" ? "Source/Pump 최적화 계산 중..." : "현재 조건 정밀 계산 요청 중...";
+  render();
   try {
     const response = await fetch(`${apiBase}/api/simulate-network`, {
       method: "POST",
@@ -2043,20 +2099,29 @@ async function runHydraulicSimulationRequest(mode = "analysis") {
           ? `Source/Pump 최적화 완료 · 권장 추가 가압 ${boost.toFixed(2)} m · 예측 최저압 ${predictedMin.toFixed(2)} m · 잔여 저압 ${lowAfter}개`
           : `${payload.engine || "backend"} 결과 반영 · ${payload.node_results?.length || 0} nodes / ${payload.pipe_results?.length || 0} pipes · 권장 가압 ${boost.toFixed(2)} m`;
     }
-    render();
   } catch (error) {
     console.warn("Backend simulation failed.", error);
     state.backendSimulation = null;
     state.backendSimulationSignature = "";
     if (status) status.textContent = `${mode === "optimization" ? "Source/Pump 최적화" : "현재 조건 정밀 계산"} 실패: ${error.message || "server error"}`;
-    render();
   } finally {
     state.backendSimulationPending = false;
     state.sourcePumpOptimizationPending = false;
+    setHydraulicActionBusy(false);
     if (analysisButton) analysisButton.disabled = false;
     if (optimizeButton) optimizeButton.disabled = false;
     if (button) button.blur();
+    render();
   }
+}
+
+function setHydraulicActionBusy(isBusy) {
+  ["run-backend-simulation", "optimize-source-pump"].forEach((id) => {
+    const button = $(id);
+    if (!button) return;
+    button.classList.toggle("hydraulic-action-busy", Boolean(isBusy));
+    button.setAttribute("aria-busy", String(Boolean(isBusy)));
+  });
 }
 
 async function readJsonResponse(response) {

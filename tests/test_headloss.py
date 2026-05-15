@@ -1,5 +1,7 @@
 import math
 
+import pandas as pd
+
 from aging_water_network.hydraulics.headloss import (
     darcy_weisbach_friction_factor,
     epanet_flow_from_headloss_lps,
@@ -7,6 +9,7 @@ from aging_water_network.hydraulics.headloss import (
     epanet_headloss_parts,
     epanet_pipe_resistance,
 )
+from aging_water_network.hydraulics.simulator import _build_hydraulic_graph, _interpolate_pump_curve_head
 
 
 def test_hazen_williams_matches_epanet_si_coefficient():
@@ -48,3 +51,23 @@ def test_darcy_and_manning_resistance_are_positive():
     assert dw_exponent == 2.0
     assert cm_resistance > 0
     assert cm_exponent == 2.0
+
+
+def test_pump_curve_uses_forward_flow_and_clamps_reverse_flow_to_shutoff():
+    curve = [(0.0, 50.0), (20.0, 40.0), (40.0, 25.0)]
+
+    assert math.isclose(_interpolate_pump_curve_head(20.0, curve, 1.0), 40.0)
+    assert math.isclose(_interpolate_pump_curve_head(-20.0, curve, 1.0), 50.0)
+
+
+def test_pipe_status_closed_is_reflected_in_hydraulic_graph_weight():
+    params = pd.DataFrame([{"pipe_id": "P1", "adjusted_roughness_c": 120.0, "minor_loss_k": 0.0}])
+    open_pipe = pd.DataFrame(
+        [{"pipe_id": "P1", "from_node": "A", "to_node": "B", "length_m": 100.0, "diameter_mm": 200.0, "roughness_c": 120.0, "status": "OPEN"}]
+    )
+    closed_pipe = open_pipe.assign(status="CLOSED")
+
+    open_weight = _build_hydraulic_graph(open_pipe, params)["A"]["B"]["weight"]
+    closed_weight = _build_hydraulic_graph(closed_pipe, params)["A"]["B"]["weight"]
+
+    assert closed_weight > open_weight * 100_000

@@ -1102,6 +1102,12 @@ main {
   background: #125b73;
 }
 
+.hydraulic-action-busy {
+  opacity: 0.42;
+  filter: saturate(0.75);
+  cursor: progress;
+}
+
 .asset-toolbar .primary-button,
 .asset-toolbar .text-button,
 .batch-toolbar .primary-button,
