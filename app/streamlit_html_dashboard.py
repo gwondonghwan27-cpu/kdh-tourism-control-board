@@ -83,70 +83,20 @@ def ensure_src_path() -> None:
 
 
 def render_streamlit_recognition_controls(st: Any) -> dict[str, Any] | None:
-    from aging_water_network.vision import build_dashboard_assets_from_recognition, recognize_drawing_file
-
-    st.sidebar.header("Drawing recognition")
-    uploaded = st.sidebar.file_uploader(
-        "Water-network drawing file",
-        type=["jpg", "jpeg", "png", "pdf", "dwg", "dxf"],
-    )
-    min_line_length = st.sidebar.slider("Minimum line length (px)", 10, 180, 35, 5)
-    merge_tolerance = st.sidebar.slider("Endpoint merge tolerance (px)", 4, 42, 18, 1)
-    scale_m_per_px = st.sidebar.number_input("Pixel-to-meter scale", min_value=0.01, max_value=20.0, value=1.0, step=0.05)
-    default_diameter_mm = st.sidebar.number_input("Default diameter (mm)", min_value=50.0, max_value=1200.0, value=150.0, step=10.0)
-    default_material = st.sidebar.selectbox("Default material", ["PVC", "HDPE", "ductile_iron", "steel", "cast_iron", "concrete"], index=0)
-    col_a, col_b = st.sidebar.columns(2)
-    analyze = col_a.button("Analyze", type="primary", disabled=uploaded is None)
-    reset = col_b.button("Reset")
-
-    if reset:
-        st.session_state.pop("streamlit_recognized_assets", None)
-        st.session_state.pop("streamlit_recognition_summary", None)
-    if analyze and uploaded is not None:
-        file_bytes = uploaded.getvalue()
-        with st.spinner("Detecting file type and recognizing drawing geometry."):
-            drawing_file_type, result = recognize_drawing_file(
-                file_bytes,
-                filename=uploaded.name,
-                mime_type=uploaded.type or mime_type_from_filename(uploaded.name),
-                min_line_length=min_line_length,
-                merge_tolerance_px=float(merge_tolerance),
-            )
-            assets = build_dashboard_assets_from_recognition(
-                result,
-                scale_m_per_px=scale_m_per_px,
-                default_diameter_mm=default_diameter_mm,
-                default_material=default_material,
-                include_virtual_reservoir=True,
-            )
-        st.session_state.streamlit_recognized_assets = assets.to_dict()
-        st.session_state.streamlit_recognition_summary = {
-            **result.summary(),
-            "file_type": drawing_file_type,
-            "cad_format": getattr(result, "cad_format", None),
-            "pdf_mode": getattr(result, "pdf_mode", None),
-            "warnings": getattr(result, "warnings", []),
-        }
-
-    summary = st.session_state.get("streamlit_recognition_summary")
-    if summary:
-        route = summary.get("file_type", "drawing")
-        st.sidebar.caption(
-            f"{route} result: {summary['pipe_candidates']} pipes / "
-            f"{summary['node_candidates']} node candidates"
-        )
-        for warning in summary.get("warnings", []):
-            st.sidebar.warning(warning)
-    return st.session_state.get("streamlit_recognized_assets")
+    st.sidebar.header("상수도 관망 도면 .inp 업로드")
+    st.sidebar.caption("상단의 도면 .inp 업로드 화면에서 EPANET 관망 파일을 불러오고, 관망 적용 후 GIS 대시보드에서 확인합니다.")
+    st.session_state.pop("streamlit_recognized_assets", None)
+    st.session_state.pop("streamlit_recognition_summary", None)
+    return None
 
 
 def ensure_local_recognition_api(st: Any) -> str | None:
-    """Start the local dashboard API so the embedded canvas can recognize drawings."""
+    """Start the local dashboard API used by the embedded HTML dashboard."""
 
     for port in range(5181, 5190):
         api_base = f"http://127.0.0.1:{port}"
         if is_recognition_api_ready(api_base):
-            st.sidebar.caption(f"Canvas recognition API: {api_base}")
+            st.sidebar.caption(f"관망 계산 API: {api_base}")
             return api_base
         if not is_port_available("127.0.0.1", port):
             continue
@@ -167,12 +117,12 @@ def ensure_local_recognition_api(st: Any) -> str | None:
         st.session_state.streamlit_recognition_api_process = process.pid
         for _ in range(20):
             if is_recognition_api_ready(api_base):
-                st.sidebar.caption(f"Canvas recognition API: {api_base}")
+                st.sidebar.caption(f"관망 계산 API: {api_base}")
                 return api_base
             if process.poll() is not None:
                 break
             time.sleep(0.1)
-    st.sidebar.warning("Canvas recognition API could not start. Use the sidebar Analyze button instead.")
+    st.sidebar.warning("관망 계산 API를 시작하지 못했습니다. 정밀 해석 기능만 제한될 수 있습니다.")
     return None
 
 
@@ -194,18 +144,6 @@ def is_recognition_api_ready(api_base: str) -> bool:
             )
     except (OSError, json.JSONDecodeError):
         return False
-
-
-def mime_type_from_filename(filename: str) -> str:
-    suffix = Path(filename).suffix.lower()
-    return {
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".png": "image/png",
-        ".pdf": "application/pdf",
-        ".dwg": "application/x-dwg",
-        ".dxf": "application/dxf",
-    }.get(suffix, "application/octet-stream")
 
 
 def build_dashboard_html(
@@ -248,9 +186,9 @@ def build_dashboard_html(
         const url = typeof resource === "string" ? resource : resource?.url || "";
         const route = decodeURIComponent(String(url).split("?")[0]);
         const fileName = route.split("/").pop();
-        if (route.endsWith("/api/recognize-drawing") && window.__DRAWING_RECOGNITION_API_BASE__) {{
+        if (route.endsWith("/api/simulate-network") && window.__DRAWING_RECOGNITION_API_BASE__) {{
           const apiBase = String(window.__DRAWING_RECOGNITION_API_BASE__).replace(/\\/$/, "");
-          if (__streamlitOriginalFetch) return __streamlitOriginalFetch(`${{apiBase}}/api/recognize-drawing`, options);
+          if (__streamlitOriginalFetch) return __streamlitOriginalFetch(`${{apiBase}}/api/simulate-network`, options);
         }}
         if (Object.prototype.hasOwnProperty.call(window.__STREAMLIT_MOCK_CSV__, fileName)) {{
           return new Response(window.__STREAMLIT_MOCK_CSV__[fileName], {{
@@ -258,9 +196,9 @@ def build_dashboard_html(
             headers: {{ "Content-Type": "text/csv;charset=utf-8" }},
           }});
         }}
-        if (route.endsWith("/api/recognize-drawing")) {{
+        if (route.endsWith("/api/simulate-network")) {{
           return new Response(JSON.stringify({{
-            error: "Use the Streamlit sidebar uploader for cloud drawing recognition."
+            error: "Local Python API is not available for this operation."
           }}), {{
             status: 501,
             headers: {{ "Content-Type": "application/json;charset=utf-8" }},

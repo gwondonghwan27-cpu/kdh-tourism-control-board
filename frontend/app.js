@@ -2677,7 +2677,7 @@ function buildProfessionalDiagnostics(snapshot) {
         category: "INP",
         title: "관망 데이터 대기",
         detail: ".inp 파일을 업로드하면 압력 원인, Fire Flow, 밸브 격리, DMA 누수, 자산 위험도 진단을 계산합니다.",
-        action: "EPANET INP 업로드 후 관망 적용",
+        action: "도면 .inp 업로드 후 관망 적용",
         level: "info",
       },
     ];
