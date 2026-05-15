@@ -21,6 +21,11 @@ def test_source_pump_prediction_recovers_low_pressure_and_reports_flows():
     assert prediction["control_plan"]
     assert any(item["recommended_boost_m"] > 0 for item in prediction["control_plan"])
     assert all("flow_contribution_percent" in item for item in prediction["control_plan"])
+    assert prediction["hydraulic_simulation_count"] > 0
+    assert prediction["critical_junction_count"] > 0
+    assert prediction["active_set_rounds"] >= 1
+    assert prediction["critical_junctions"]
+    assert "sdi_active_set" in prediction["optimization_method"]
 
 
 def test_source_pump_prediction_cache_and_asset_status_are_explicit():

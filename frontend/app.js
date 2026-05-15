@@ -417,7 +417,7 @@ function setDashboardMode(mode) {
   const summaries = {
     ops: "관망 상태를 확인하고 지도에서 바로 자산을 선택·편집합니다.",
     scenario: "수요, 누수, Source/Pump 조건을 바꾸고 최적값을 계산합니다.",
-    diagnostics: "저압 원인, 위험도, 수질·화재유량 같은 전문 진단을 확인합니다.",
+    diagnostics: "저압 원인, 위험도, 수질·화재유량 진단과 리포트를 확인합니다.",
   };
   $("dashboard-mode-summary").textContent = summaries[nextMode];
   $("dashboard-view")?.setAttribute("data-dashboard-mode-current", nextMode);
@@ -1814,7 +1814,7 @@ function updateDashboardStatus(snapshot) {
                 : state.editorTab === "pipe"
                   ? "Pipe 편집"
                   : "시나리오 편집";
-  const backend = snapshot.backendSimulation ? "정밀 해석 반영" : "실시간 관망 계산";
+  const backend = snapshot.backendSimulation ? "현재 조건 정밀 계산 반영" : "실시간 관망 계산";
   const dirty = hasNetworkChanged() ? " · 저장되지 않은 변경" : "";
   $("scenario-label").textContent = `${mode} / ${backend}${dirty}`;
   const status = $("backend-simulation-status");
@@ -2022,7 +2022,7 @@ async function runHydraulicSimulationRequest(mode = "analysis") {
   state.sourcePumpOptimizationPending = mode === "optimization";
   if (analysisButton) analysisButton.disabled = true;
   if (optimizeButton) optimizeButton.disabled = true;
-  if (status) status.textContent = mode === "optimization" ? "Source/Pump 최적화 계산 중..." : "정밀 해석 요청 중...";
+  if (status) status.textContent = mode === "optimization" ? "Source/Pump 최적화 계산 중..." : "현재 조건 정밀 계산 요청 중...";
   try {
     const response = await fetch(`${apiBase}/api/simulate-network`, {
       method: "POST",
@@ -2048,7 +2048,7 @@ async function runHydraulicSimulationRequest(mode = "analysis") {
     console.warn("Backend simulation failed.", error);
     state.backendSimulation = null;
     state.backendSimulationSignature = "";
-    if (status) status.textContent = `${mode === "optimization" ? "Source/Pump 최적화" : "백엔드 수리해석"} 실패: ${error.message || "server error"}`;
+    if (status) status.textContent = `${mode === "optimization" ? "Source/Pump 최적화" : "현재 조건 정밀 계산"} 실패: ${error.message || "server error"}`;
     render();
   } finally {
     state.backendSimulationPending = false;
@@ -2838,7 +2838,7 @@ function reportDiagnostic(snapshot) {
   return {
     category: "Report",
     title: "진단 리포트 생성 가능",
-    detail: `현재 ${snapshot.nodes.length} nodes / ${snapshot.pipes.length} pipes 기준 전문 진단 JSON을 내려받을 수 있습니다.`,
+    detail: `현재 ${snapshot.nodes.length} nodes / ${snapshot.pipes.length} pipes 기준 진단/리포트 JSON을 내려받을 수 있습니다.`,
     action: "상단 '진단 리포트 JSON' 버튼 사용",
     level: "ok",
   };

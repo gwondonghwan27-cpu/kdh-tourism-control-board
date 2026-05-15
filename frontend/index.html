@@ -173,7 +173,7 @@
         <div class="dashboard-mode-buttons" role="tablist" aria-label="dashboard mode tabs">
           <button class="dashboard-mode-tab active" data-dashboard-mode-target="ops" type="button" role="tab" aria-selected="true">관망 운영/편집</button>
           <button class="dashboard-mode-tab" data-dashboard-mode-target="scenario" type="button" role="tab" aria-selected="false">시나리오/최적화</button>
-          <button class="dashboard-mode-tab" data-dashboard-mode-target="diagnostics" type="button" role="tab" aria-selected="false">전문 진단</button>
+          <button class="dashboard-mode-tab" data-dashboard-mode-target="diagnostics" type="button" role="tab" aria-selected="false">진단/리포트</button>
         </div>
       </section>
 
@@ -212,7 +212,7 @@
         </label>
         <button id="add-leak-pipe" class="primary-button" type="button">누수 추가</button>
         <button id="reset-scenario" class="primary-button" type="button">기본값</button>
-        <button id="run-backend-simulation" class="text-button" type="button">정밀 해석</button>
+        <button id="run-backend-simulation" class="text-button" type="button">현재 조건 정밀 계산</button>
         <button id="optimize-source-pump" class="primary-button optimize-button" type="button">Source/Pump 최적화</button>
         <div id="backend-simulation-status" class="simulation-status">실시간 관망 계산값</div>
         <div id="source-pump-prediction" class="source-pump-prediction">
@@ -272,7 +272,7 @@
 
       <section class="expert-diagnostics" aria-label="hydraulic expert diagnostics" data-dashboard-mode="diagnostics">
         <div class="section-heading compact-heading">
-          <h2>전문 진단</h2>
+          <h2>진단/리포트</h2>
           <button id="download-professional-report" class="text-button" type="button">진단 리포트 JSON</button>
         </div>
         <div id="expert-diagnostics-grid" class="expert-diagnostics-grid"></div>
