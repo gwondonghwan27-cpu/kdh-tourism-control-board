@@ -13,7 +13,21 @@ from typing import Any
 import pandas as pd
 
 from aging_water_network.config import MIN_PRESSURE_HEAD_M
-from aging_water_network.hydraulics.simulator import compute_fallback_aging_scores, compute_pipe_hydraulic_params, run_hydraulic_simulation
+from aging_water_network.hydraulics.energy import (
+    energy_options_from_tables,
+    estimate_energy_cost,
+    estimate_pump_kw,
+    merge_pump_energy,
+    pump_efficiency_at_flow,
+    pump_energy_price,
+)
+from aging_water_network.hydraulics.simulator import (
+    _interpolate_pump_curve_head,
+    _pump_curve_points,
+    compute_fallback_aging_scores,
+    compute_pipe_hydraulic_params,
+    run_hydraulic_simulation,
+)
 
 
 _RESULT_CACHE: dict[str, dict[str, Any]] = {}
@@ -123,6 +137,8 @@ def predict_source_pump_operation(
     control_plan_rows = _control_plan(controls, selected_boosts, optimized["pipe_results"])
     source_rows = _source_summaries(base_tables, boosted_tables, optimized["pipe_results"], control_plan_rows)
     pump_rows = _pump_summaries(base_tables, boosted_tables, optimized["pipe_results"], control_plan_rows)
+    total_estimated_pump_kw = sum(float(item.get("estimated_kw", 0.0) or 0.0) for item in pump_rows)
+    total_estimated_energy_cost = sum(float(item.get("estimated_cost_per_hour", 0.0) or 0.0) for item in pump_rows)
     result = {
         "target_min_pressure_m": round(float(min_pressure_head_m), 4),
         "recommended_boost_m": round(float(selected_boost), 4),
@@ -135,6 +151,8 @@ def predict_source_pump_operation(
         "pumps": pump_rows,
         "total_source_outflow_lps": round(sum(item["predicted_outflow_lps"] for item in source_rows), 4),
         "total_pump_flow_lps": round(sum(abs(item["predicted_flow_lps"]) for item in pump_rows), 4),
+        "total_estimated_pump_kw": round(float(total_estimated_pump_kw), 4),
+        "total_estimated_energy_cost_per_hour": round(float(total_estimated_energy_cost), 4),
         "optimization_method": "cache_warm_start_sdi_active_set_sensitivity_constrained_validation",
         "cache_hit": False,
         "warm_start_used": warm_started,
@@ -172,11 +190,17 @@ def _boost_source_pump_tables(tables: Mapping[str, pd.DataFrame], boost_m: float
 
 def _controllable_assets(tables: Mapping[str, pd.DataFrame], pipe_results: pd.DataFrame | None = None) -> list[dict[str, Any]]:
     controls: list[dict[str, Any]] = []
+    energy_options = energy_options_from_tables(tables)
     pumps = tables.get("pumps", pd.DataFrame())
     if isinstance(pumps, pd.DataFrame) and not pumps.empty:
         statuses = pumps.get("status", pd.Series("on", index=pumps.index)).astype(str).str.lower()
         for index, pump in pumps[statuses.ne("off")].iterrows():
             pump_id = str(pump.get("pump_id", f"PUMP_{index}"))
+            pump_record = merge_pump_energy(pump.to_dict(), tables)
+            baseline_flow = abs(_pump_flow_lps(pump_record, pipe_results)) if pipe_results is not None else 0.0
+            efficiency = pump_efficiency_at_flow(pump_record, baseline_flow, energy_options)
+            price = pump_energy_price(pump_record, energy_options)
+            unit_head_kw = estimate_pump_kw(baseline_flow, 1.0, efficiency)
             controls.append(
                 {
                     "key": f"pump:{pump_id}",
@@ -185,7 +209,9 @@ def _controllable_assets(tables: Mapping[str, pd.DataFrame], pipe_results: pd.Da
                     "index": index,
                     "from_node": str(pump.get("from_node", "")),
                     "to_node": str(pump.get("to_node", "")),
-                    "cost_weight": 1.0,
+                    "cost_weight": 1.0 + unit_head_kw * max(price, 0.0),
+                    "efficiency_percent": round(efficiency * 100.0, 4),
+                    "energy_price_per_kwh": round(float(price), 6),
                 }
             )
     reservoirs = tables.get("reservoirs", pd.DataFrame())
@@ -777,12 +803,28 @@ def _pump_summaries(
     pumps = base_tables.get("pumps", pd.DataFrame())
     boosted_pumps = boosted_tables.get("pumps", pd.DataFrame())
     boosted_lookup = boosted_pumps.set_index("pump_id").to_dict("index") if not boosted_pumps.empty else {}
+    energy_options = energy_options_from_tables(base_tables)
     rows: list[dict[str, Any]] = []
     plan_lookup = {str(item["control_key"]): item for item in control_plan or []}
     for pump in pumps.to_dict("records"):
         pump_id = str(pump.get("pump_id", ""))
         boosted = boosted_lookup.get(pump_id, {})
+        pump_with_energy = merge_pump_energy({**pump, **boosted}, base_tables)
         plan = plan_lookup.get(f"pump:{pump_id}", {})
+        flow_lps = _pump_flow_lps(pump, pipe_results)
+        speed = max(float(pump_with_energy.get("speed_multiplier", 1.0) or 1.0), 1e-6)
+        curve_points = _pump_curve_points(pump_with_energy)
+        curve_head = _interpolate_pump_curve_head(flow_lps, curve_points, speed) if curve_points else None
+        recommended_head = float(boosted.get("base_head_gain_m", pump.get("base_head_gain_m", 0.0)) or 0.0)
+        efficiency = pump_efficiency_at_flow(pump_with_energy, abs(flow_lps), energy_options)
+        price = pump_energy_price(pump_with_energy, energy_options)
+        estimated_kw = estimate_pump_kw(abs(flow_lps), recommended_head, efficiency)
+        estimated_cost = estimate_energy_cost(
+            estimated_kw,
+            price,
+            demand_charge=float(energy_options.get("demand_charge", 0.0) or 0.0),
+            peak_kw=estimated_kw,
+        )
         rows.append(
             {
                 "pump_id": pump_id,
@@ -790,14 +832,40 @@ def _pump_summaries(
                 "to_node": str(pump.get("to_node", "")),
                 "status": str(pump.get("status", "on")),
                 "current_head_gain_m": round(float(pump.get("base_head_gain_m", 0.0) or 0.0), 4),
-                "recommended_head_gain_m": round(float(boosted.get("base_head_gain_m", pump.get("base_head_gain_m", 0.0)) or 0.0), 4),
-                "predicted_flow_lps": round(_pump_flow_lps(pump, pipe_results), 4),
+                "recommended_head_gain_m": round(recommended_head, 4),
+                "predicted_flow_lps": round(flow_lps, 4),
+                "operating_flow_lps": round(abs(flow_lps), 4),
+                "curve_head_m": None if curve_head is None else round(float(curve_head), 4),
+                "curve_id": str(pump.get("pump_curve_id", "")),
+                "curve_points": _curve_points_for_response(curve_points),
+                "operating_point_status": _pump_operating_point_status(abs(flow_lps), curve_points),
+                "efficiency_percent": round(efficiency * 100.0, 4),
+                "estimated_kw": round(estimated_kw, 4),
+                "estimated_kwh": round(estimated_kw, 4),
+                "energy_price_per_kwh": round(float(price), 6),
+                "estimated_cost_per_hour": round(float(estimated_cost), 4),
                 "recommended_boost_m": round(float(plan.get("recommended_boost_m", 0.0) or 0.0), 4),
                 "flow_contribution_percent": round(float(plan.get("flow_contribution_percent", 0.0) or 0.0), 2),
                 "optimization_status": str(plan.get("status", "not_selected")),
             }
         )
     return rows
+
+
+def _curve_points_for_response(points: list[tuple[float, float]]) -> list[dict[str, float]]:
+    return [
+        {"flow_lps": round(float(flow), 4), "head_m": round(float(head), 4)}
+        for flow, head in points
+    ]
+
+
+def _pump_operating_point_status(flow_lps: float, points: list[tuple[float, float]]) -> str:
+    if not points:
+        return "no_curve"
+    flows = [float(point[0]) for point in points]
+    if flow_lps < min(flows) or flow_lps > max(flows):
+        return "outside_curve_range"
+    return "on_curve"
 
 
 def _node_outflow_lps(node_id: str, pipe_results: pd.DataFrame) -> float:
