@@ -95,6 +95,10 @@ const state = {
   valves: [],
   households: [],
   demandSeries: [],
+  demandPatterns: [],
+  energyOptions: {},
+  pumpEnergy: [],
+  activeDemandMode: "profile",
   demandProfile: "metro",
   headlossFormula: "H-W",
   initialData: null,
@@ -156,8 +160,8 @@ const $ = (id) => document.getElementById(id);
 boot();
 
 async function boot() {
-  const { nodes, pipes, reservoirs, pumps, valves, households, demandSeries } = emptyDashboardData();
-  Object.assign(state, { nodes, pipes, reservoirs, pumps, valves, households, demandSeries });
+  const { nodes, pipes, reservoirs, pumps, valves, households, demandSeries, demandPatterns, energyOptions, pumpEnergy } = emptyDashboardData();
+  Object.assign(state, { nodes, pipes, reservoirs, pumps, valves, households, demandSeries, demandPatterns, energyOptions, pumpEnergy });
   state.initialData = {
     nodes: cloneRows(nodes),
     pipes: cloneRows(pipes),
@@ -166,6 +170,10 @@ async function boot() {
     valves: cloneRows(valves),
     households: cloneRows(households),
     demandSeries: cloneRows(demandSeries),
+    demandPatterns: cloneRows(demandPatterns),
+    energyOptions: { ...energyOptions },
+    pumpEnergy: cloneRows(pumpEnergy),
+    activeDemandMode: state.activeDemandMode,
   };
   state.baseNodeGeometry = new Map(state.nodes.map((node) => [node.node_id, baseNodeState(node)]));
   state.originalNodeGeometry = new Map(state.nodes.map((node) => [node.node_id, baseNodeState(node)]));
@@ -185,6 +193,9 @@ function emptyDashboardData() {
     valves: [],
     households: [],
     demandSeries: [],
+    demandPatterns: [],
+    energyOptions: {},
+    pumpEnergy: [],
   };
 }
 
@@ -522,6 +533,10 @@ function restoreInitialDashboardNetwork() {
   state.valves = cloneRows(state.initialData.valves);
   state.households = cloneRows(state.initialData.households);
   state.demandSeries = cloneRows(state.initialData.demandSeries);
+  state.demandPatterns = cloneRows(state.initialData.demandPatterns || []);
+  state.energyOptions = { ...(state.initialData.energyOptions || {}) };
+  state.pumpEnergy = cloneRows(state.initialData.pumpEnergy || []);
+  state.activeDemandMode = state.initialData.activeDemandMode || "profile";
   buildDemandIndex();
   state.pipeEdits = new Map();
   state.leakDemands = new Map();
@@ -986,6 +1001,9 @@ function parseEpanetInp(text, options = {}) {
   const coordinates = parseEpanetCoordinates(sections.COORDINATES, unit, coordinateScale);
   const vertices = parseEpanetVertices(sections.VERTICES, unit, coordinateScale);
   const curves = parseEpanetCurves(sections.CURVES, unit);
+  const patternTimestepMinutes = parseEpanetPatternTimestepMinutes(sections.TIMES);
+  const demandPatterns = parseEpanetPatterns(sections.PATTERNS, patternTimestepMinutes);
+  const energy = parseEpanetEnergy(sections.ENERGY, curves);
   const warnings = [];
 
   const junctions = (sections.JUNCTIONS || []).map((line, index) => {
@@ -998,6 +1016,7 @@ function parseEpanetInp(text, options = {}) {
       y: point.y,
       elevation_m: unit.headToM(numberOr(row[1], 0)),
       base_demand_lps: unit.flowToLps(numberOr(row[2], 0)),
+      demand_pattern_id: String(row[3] || ""),
       node_type: "junction",
       dma_id: inferInpDma(point.x, point.y),
       source: "inp",
@@ -1067,6 +1086,7 @@ function parseEpanetInp(text, options = {}) {
       const fromNode = String(row[1] || "");
       const toNode = String(row[2] || "");
       const pumpCurve = epanetPumpHeadCurve(row, curves);
+      const pumpEnergy = energy.pumps.get(pumpId) || {};
       if (nodeIds.has(fromNode) && nodeIds.has(toNode)) {
         pumpConnectorPipes.push(inpPumpConnectorPipe(pumpId, fromNode, toNode, nodes, options.defaultDiameterMm || 300));
       }
@@ -1079,6 +1099,11 @@ function parseEpanetInp(text, options = {}) {
         pump_curve_kind: pumpCurve ? "HEAD" : "",
         pump_curve_points: pumpCurve?.points || [],
         curve_reference_head_m: pumpCurve?.reference_head_m ?? null,
+        efficiency_percent: pumpEnergy.efficiency_percent ?? energy.options.global_efficiency_percent,
+        efficiency_curve_id: pumpEnergy.efficiency_curve_id || "",
+        efficiency_curve_points: pumpEnergy.efficiency_curve_points || [],
+        energy_price_per_kwh: pumpEnergy.energy_price_per_kwh ?? energy.options.global_price_per_kwh,
+        energy_price_pattern_id: pumpEnergy.energy_price_pattern_id || "",
         speed_multiplier: 1,
         status: "on",
         source: "inp",
@@ -1089,6 +1114,7 @@ function parseEpanetInp(text, options = {}) {
   if (!junctions.length) warnings.push("JUNCTIONS section is empty.");
   if (!pipes.length) warnings.push("PIPES section is empty.");
   if (!coordinates.size) warnings.push("COORDINATES section is empty; automatic layout was used.");
+  if (junctions.some((node) => node.demand_pattern_id) && !demandPatterns.length) warnings.push("Junction demand patterns were referenced but [PATTERNS] was empty.");
   const skippedPipes = pipeRows.length - pipes.length;
   if (skippedPipes > 0) warnings.push(`${skippedPipes} pipe(s) had missing endpoints and were skipped.`);
 
@@ -1097,9 +1123,13 @@ function parseEpanetInp(text, options = {}) {
     pipes: [...pumpConnectorPipes, ...pipes],
     reservoirs: reservoirs.map((reservoir) => ({ node_id: reservoir.node_id, head_m: reservoir.head_m })),
     pumps,
+    demand_patterns: demandPatterns,
+    energy_options: energy.options,
+    pump_energy: Array.from(energy.pumps.values()),
     options: {
       units: optionUnits,
       headloss: headlossFormula,
+      pattern_timestep_minutes: patternTimestepMinutes,
     },
     warnings,
   };
@@ -1163,6 +1193,108 @@ function representativePumpCurveHead(points) {
   const candidates = positiveFlowPoints.length ? positiveFlowPoints : points;
   const middleIndex = Math.floor((candidates.length - 1) / 2);
   return Number(candidates[middleIndex]?.head_m || points[0]?.head_m || 3);
+}
+
+function parseEpanetPatterns(rows = [], timestepMinutes = 60) {
+  const records = [];
+  const counters = new Map();
+  for (const line of rows || []) {
+    const tokens = epanetTokens(line);
+    const patternId = String(tokens[0] || "");
+    if (!patternId) continue;
+    const start = counters.get(patternId) || 0;
+    tokens.slice(1).forEach((token, offset) => {
+      const multiplier = numberOr(token, NaN);
+      if (!Number.isFinite(multiplier)) return;
+      const stepIndex = start + offset;
+      records.push({
+        pattern_id: patternId,
+        step_index: stepIndex,
+        hour: (stepIndex * Number(timestepMinutes || 60)) / 60,
+        minute: stepIndex * Number(timestepMinutes || 60),
+        multiplier,
+      });
+    });
+    counters.set(patternId, start + Math.max(tokens.length - 1, 0));
+  }
+  return records;
+}
+
+function parseEpanetPatternTimestepMinutes(rows = []) {
+  for (const line of rows || []) {
+    const tokens = epanetTokens(line);
+    if (!tokens.length) continue;
+    const key = tokens.slice(0, -1).join(" ").toLowerCase();
+    if (key === "pattern timestep" || key === "pattern step") {
+      return epanetDurationToMinutes(tokens[tokens.length - 1], 60);
+    }
+  }
+  return 60;
+}
+
+function epanetDurationToMinutes(value, fallback = 60) {
+  const text = String(value || "").trim();
+  if (!text) return fallback;
+  const clock = text.match(/^(\d+):(\d+)$/);
+  if (clock) return Number(clock[1]) * 60 + Number(clock[2]);
+  const number = Number(text);
+  return Number.isFinite(number) ? number * 60 : fallback;
+}
+
+function parseEpanetEnergy(rows = [], curves = new Map()) {
+  const options = {
+    global_efficiency_percent: 65,
+    global_price_per_kwh: 0,
+    demand_charge: 0,
+  };
+  const pumps = new Map();
+  const pumpRow = (pumpId) => {
+    const id = String(pumpId || "");
+    if (!pumps.has(id)) pumps.set(id, { pump_id: id });
+    return pumps.get(id);
+  };
+
+  for (const line of rows || []) {
+    const tokens = epanetTokens(line);
+    if (!tokens.length) continue;
+    const first = String(tokens[0] || "").toUpperCase();
+    if (first === "GLOBAL") {
+      const key = String(tokens[1] || "").toUpperCase();
+      if (key === "EFFICIENCY") options.global_efficiency_percent = numberOr(tokens[2], options.global_efficiency_percent);
+      if (key === "PRICE") options.global_price_per_kwh = numberOr(tokens[2], options.global_price_per_kwh);
+      if (key === "PATTERN") options.global_price_pattern_id = String(tokens[2] || "");
+      continue;
+    }
+    if (first === "DEMAND" && String(tokens[1] || "").toUpperCase() === "CHARGE") {
+      options.demand_charge = numberOr(tokens[2], options.demand_charge);
+      continue;
+    }
+    if (first !== "PUMP" || tokens.length < 4) continue;
+    const pumpId = String(tokens[1] || "");
+    const setting = String(tokens[2] || "").toUpperCase();
+    const row = pumpRow(pumpId);
+    if (setting === "EFFICIENCY") {
+      if (String(tokens[3] || "").toUpperCase() === "CURVE" && tokens[4]) {
+        row.efficiency_curve_id = String(tokens[4]);
+      } else if (Number.isFinite(Number(tokens[3]))) {
+        row.efficiency_percent = numberOr(tokens[3], options.global_efficiency_percent);
+      } else {
+        row.efficiency_curve_id = String(tokens[3] || "");
+      }
+    }
+    if (setting === "PRICE") row.energy_price_per_kwh = numberOr(tokens[3], options.global_price_per_kwh);
+    if (setting === "PATTERN") row.energy_price_pattern_id = String(tokens[3] || "");
+  }
+
+  for (const row of pumps.values()) {
+    const curveId = row.efficiency_curve_id;
+    if (!curveId || !curves.has(curveId)) continue;
+    row.efficiency_curve_points = (curves.get(curveId) || []).map((point) => ({
+      flow_lps: Number(point.flow_lps || 0),
+      efficiency_percent: Number(point.source_head || point.head_m || 0),
+    }));
+  }
+  return { options, pumps };
 }
 
 function epanetSections(text) {
@@ -1397,6 +1529,10 @@ function applyRecognitionAssetsToDashboard(assets) {
   state.pumps = normalizedAssets.pumps;
   state.valves = [];
   state.households = [];
+  state.demandPatterns = Array.isArray(assets?.demand_patterns) ? cloneRows(assets.demand_patterns) : [];
+  state.energyOptions = { ...(assets?.energy_options || {}) };
+  state.pumpEnergy = Array.isArray(assets?.pump_energy) ? cloneRows(assets.pump_energy) : [];
+  state.activeDemandMode = state.demandPatterns.length ? "inp" : "profile";
   state.demandByMinute = new Map();
   state.pipeEdits = new Map();
   state.leakDemands = new Map();
@@ -1447,6 +1583,7 @@ function normalizeDashboardAssetsForEditing(assets) {
       base_demand_lps: Number(node.base_demand_lps ?? (node.node_type === "reservoir" ? 0 : 0.8)),
       node_type: node.node_type === "reservoir" ? "reservoir" : "junction",
       dma_id: String(node.dma_id || (node.node_type === "reservoir" ? "SOURCE" : "IMG_IMPORT")),
+      demand_pattern_id: String(node.demand_pattern_id || ""),
     }))
     .filter((node) => node.node_id && Number.isFinite(node.x) && Number.isFinite(node.y));
   const nodeIds = new Set(nodes.map((node) => node.node_id));
@@ -1537,6 +1674,11 @@ function normalizeDashboardAssetsForEditing(assets) {
       pump_curve_kind: String(pump.pump_curve_kind || ""),
       pump_curve_points: Array.isArray(pump.pump_curve_points) ? pump.pump_curve_points : [],
       curve_reference_head_m: pump.curve_reference_head_m == null ? null : Number(pump.curve_reference_head_m),
+      efficiency_percent: pump.efficiency_percent == null ? null : Number(pump.efficiency_percent),
+      efficiency_curve_id: String(pump.efficiency_curve_id || ""),
+      efficiency_curve_points: Array.isArray(pump.efficiency_curve_points) ? pump.efficiency_curve_points : [],
+      energy_price_per_kwh: pump.energy_price_per_kwh == null ? null : Number(pump.energy_price_per_kwh),
+      energy_price_pattern_id: String(pump.energy_price_pattern_id || ""),
       speed_multiplier: Number(pump.speed_multiplier ?? 1),
       status: String(pump.status || "on"),
     }));
@@ -1546,6 +1688,7 @@ function normalizeDashboardAssetsForEditing(assets) {
       from_node: reservoirNode.node_id,
       to_node: firstJunction.node_id,
       base_head_gain_m: 3,
+      efficiency_percent: Number(state.energyOptions?.global_efficiency_percent || 65),
       speed_multiplier: 1,
       status: "on",
     });
@@ -2135,13 +2278,20 @@ async function readJsonResponse(response) {
 }
 
 function networkSimulationPayload() {
+  const demandByNode = nodeDemandAt(currentMinute());
   return {
     tables: {
-      nodes: state.nodes,
+      nodes: state.nodes.map((node) => ({
+        ...node,
+        base_demand_lps: node.node_type === "reservoir" ? 0 : Number(demandByNode.get(node.node_id) ?? node.base_demand_lps ?? 0),
+      })),
       pipes: state.pipes.map((pipe) => ({ ...pipe, ...pipeDesign(pipe) })),
       reservoirs: state.reservoirs,
       pumps: state.pumps,
       valves: state.valves,
+      demand_patterns: state.demandPatterns,
+      energy_options: state.energyOptions ? [state.energyOptions] : [],
+      pump_energy: state.pumpEnergy,
       options: [{ headloss: state.headlossFormula || "H-W" }],
     },
     scenario: {
@@ -2158,6 +2308,7 @@ function liveHydraulicStateSignature(payload = networkSimulationPayload()) {
     payload,
     minute: currentMinute(),
     demand_profile: $("demand-profile")?.value || "",
+    active_demand_mode: state.activeDemandMode || "profile",
   });
 }
 
@@ -2216,6 +2367,7 @@ function renderSourcePumpPrediction(snapshot) {
         .join("")
     : `<li><strong>Pump 없음</strong><span>활성 Pump가 없으면 Source 수두를 기준으로 보정합니다.</span><small>-</small></li>`;
   const feasibilityText = prediction.feasible ? "저압 해소 가능" : "최대 가압에서도 저압 존재";
+  const pumpRowsWithCurves = pumps.length ? renderPumpOperatingRows(pumps) : pumpRows;
   const badgeClass = prediction.feasible ? "is-good" : "is-warning";
   const sensitivityCount = prediction.sensitivity_candidates?.length || 0;
   const controlPlanCount = prediction.control_plan?.length || 0;
@@ -2246,8 +2398,53 @@ function renderSourcePumpPrediction(snapshot) {
       </section>
       <section>
         <h4>Pump 권장 가압</h4>
-        <ul>${pumpRows}</ul>
+        <ul>${pumpRowsWithCurves}</ul>
       </section>
+    </div>
+  `;
+}
+
+function renderPumpOperatingRows(pumps) {
+  return pumps
+    .map(
+      (pump) => `
+        <li>
+          <strong>${escapeHtml(pump.pump_id || "Pump")}</strong>
+          <span>Head ${Number(pump.current_head_gain_m || 0).toFixed(2)} -> ${Number(pump.recommended_head_gain_m || 0).toFixed(2)} m · boost ${Number(pump.recommended_boost_m || 0).toFixed(2)} m</span>
+          <small>${Number(pump.predicted_flow_lps || 0).toFixed(2)} L/s · ${Number(pump.flow_contribution_percent || 0).toFixed(1)}% · ${Number(pump.estimated_kw || 0).toFixed(2)} kW · ${sourcePumpStatusLabel(pump.optimization_status)}</small>
+          ${renderPumpCurveMiniChart(pump)}
+        </li>
+      `,
+    )
+    .join("");
+}
+
+function renderPumpCurveMiniChart(pump) {
+  const points = Array.isArray(pump.curve_points) ? pump.curve_points : [];
+  if (points.length < 2) return "";
+  const width = 220;
+  const height = 92;
+  const pad = 16;
+  const flows = points.map((point) => Number(point.flow_lps || 0));
+  const heads = points.map((point) => Number(point.head_m || 0));
+  const operatingFlow = Math.max(Number(pump.operating_flow_lps || Math.abs(Number(pump.predicted_flow_lps || 0))), 0);
+  const operatingHead = Number.isFinite(Number(pump.curve_head_m)) ? Number(pump.curve_head_m) : Number(pump.recommended_head_gain_m || 0);
+  const maxFlow = Math.max(...flows, operatingFlow, 1);
+  const minHead = Math.min(...heads, operatingHead);
+  const maxHead = Math.max(...heads, operatingHead, minHead + 1);
+  const x = (flow) => pad + (Number(flow || 0) / maxFlow) * (width - pad * 2);
+  const y = (head) => height - pad - ((Number(head || 0) - minHead) / Math.max(maxHead - minHead, 1e-6)) * (height - pad * 2);
+  const path = points.map((point, index) => `${index ? "L" : "M"}${x(point.flow_lps).toFixed(1)} ${y(point.head_m).toFixed(1)}`).join(" ");
+  const title = `${pump.pump_id || "Pump"} Q=${operatingFlow.toFixed(2)} L/s H=${operatingHead.toFixed(2)} m`;
+  return `
+    <div class="pump-curve-mini" title="${escapeHtml(title)}">
+      <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(title)}">
+        <path class="pump-curve-axis" d="M${pad} ${pad}V${height - pad}H${width - pad}" />
+        <path class="pump-curve-line" d="${path}" />
+        <circle class="pump-curve-point" cx="${x(operatingFlow).toFixed(1)}" cy="${y(operatingHead).toFixed(1)}" r="4.2" />
+        <text x="${pad}" y="11">${escapeHtml(pump.curve_id || "curve")}</text>
+        <text x="${width - pad}" y="${height - 4}" text-anchor="end">${operatingFlow.toFixed(1)} L/s · ${operatingHead.toFixed(1)} m</text>
+      </svg>
     </div>
   `;
 }
@@ -2588,6 +2785,7 @@ function leakPenaltyAtNode(nodeId, leakDemands = activeLeakDemands()) {
 }
 
 function nodeDemandAt(minute) {
+  if (state.activeDemandMode === "inp" && state.demandPatterns.length) return inpPatternNodeDemandAt(minute);
   const profileId = $("demand-profile")?.value || state.demandProfile || "metro";
   if (demandProfiles[profileId]) return genericNodeDemandAt(minute, profileId);
   if (!state.demandByMinute.size) {
@@ -2600,6 +2798,48 @@ function nodeDemandAt(minute) {
     return candidateDistance < bestDistance ? candidate : best;
   }, available[0]);
   return state.demandByMinute.get(nearest) || new Map();
+}
+
+function inpPatternNodeDemandAt(minute) {
+  return new Map(
+    state.nodes.map((node) => {
+      if (node.node_type === "reservoir") return [node.node_id, 0];
+      const patternId = String(node.demand_pattern_id || "");
+      const multiplier = patternId ? demandPatternFactor(patternId, minute) : 1;
+      return [node.node_id, Number(node.base_demand_lps || 0) * multiplier];
+    }),
+  );
+}
+
+function demandPatternFactor(patternId, minute) {
+  const rows = state.demandPatterns
+    .filter((row) => String(row.pattern_id || "") === String(patternId || ""))
+    .sort((a, b) => Number(a.step_index ?? a.hour ?? 0) - Number(b.step_index ?? b.hour ?? 0));
+  if (!rows.length) return 1;
+  const timestep = demandPatternTimestepMinutes(rows);
+  const wrapped = ((Number(minute || 0) % 1440) + 1440) % 1440;
+  const step = Math.floor(wrapped / Math.max(timestep, 1)) % rows.length;
+  return Number(rows[step]?.multiplier ?? 1);
+}
+
+function demandPatternTimestepMinutes(rows) {
+  const minutes = rows
+    .map((row) => Number(row.minute))
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => a - b);
+  for (let index = 1; index < minutes.length; index += 1) {
+    const delta = minutes[index] - minutes[index - 1];
+    if (delta > 0) return delta;
+  }
+  const hours = rows
+    .map((row) => Number(row.hour))
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => a - b);
+  for (let index = 1; index < hours.length; index += 1) {
+    const delta = hours[index] - hours[index - 1];
+    if (delta > 0) return delta * 60;
+  }
+  return 60;
 }
 
 function genericNodeDemandAt(minute, profileId) {

@@ -939,6 +939,47 @@ main {
   min-width: 0;
 }
 
+.pump-curve-mini {
+  grid-column: 1 / -1;
+  min-width: 0;
+  border: 1px solid #d7e5eb;
+  border-radius: var(--radius-sm);
+  background: #f8fbfc;
+  padding: 6px 8px;
+}
+
+.pump-curve-mini svg {
+  display: block;
+  width: 100%;
+  height: 92px;
+}
+
+.pump-curve-axis {
+  fill: none;
+  stroke: #bed2dc;
+  stroke-width: 1.2;
+}
+
+.pump-curve-line {
+  fill: none;
+  stroke: #0f766e;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.4;
+}
+
+.pump-curve-point {
+  fill: #f97316;
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+
+.pump-curve-mini text {
+  fill: #4a6575;
+  font-size: 9px;
+  font-weight: 900;
+}
+
 .source-pump-lists li strong,
 .source-pump-lists li span,
 .source-pump-lists li small {
@@ -1642,18 +1683,18 @@ input[type="range"] {
   pointer-events: none;
   paint-order: stroke;
   stroke: white;
-  stroke-width: calc(3px / var(--map-zoom));
+  stroke-width: calc(4.5px / var(--map-zoom));
   fill: var(--ink);
-  font-weight: 850;
+  font-weight: 950;
 }
 
 .node-label,
 .pipe-label {
-  font-size: calc(9px / var(--map-zoom));
+  font-size: calc(14px / var(--map-zoom));
 }
 
 .pressure-label {
-  font-size: calc(8px / var(--map-zoom));
+  font-size: calc(12px / var(--map-zoom));
   fill: #2d3a43;
 }
 

@@ -18,6 +18,8 @@ def test_source_pump_prediction_recovers_low_pressure_and_reports_flows():
     assert prediction["sources"]
     assert prediction["pumps"]
     assert prediction["total_source_outflow_lps"] >= 0
+    assert prediction["total_estimated_pump_kw"] >= 0
+    assert prediction["total_estimated_energy_cost_per_hour"] >= 0
     assert prediction["control_plan"]
     assert any(item["recommended_boost_m"] > 0 for item in prediction["control_plan"])
     assert all("flow_contribution_percent" in item for item in prediction["control_plan"])
@@ -39,3 +41,5 @@ def test_source_pump_prediction_cache_and_asset_status_are_explicit():
     assert second["cache_hit"]
     assert all("optimization_status" in item for item in first["sources"])
     assert all("recommended_boost_m" in item for item in first["pumps"])
+    assert all("efficiency_percent" in item for item in first["pumps"])
+    assert all("operating_flow_lps" in item for item in first["pumps"])

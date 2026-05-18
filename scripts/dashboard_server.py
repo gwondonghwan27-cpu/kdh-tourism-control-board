@@ -53,6 +53,8 @@ NUMERIC_COLUMN_DEFAULTS: dict[str, dict[str, float]] = {
     "pumps": {
         "base_head_gain_m": 0.0,
         "speed_multiplier": 1.0,
+        "efficiency_percent": 65.0,
+        "energy_price_per_kwh": 0.0,
     },
     "reservoirs": {
         "head_m": 50.0,
@@ -70,7 +72,17 @@ NUMERIC_COLUMN_DEFAULTS: dict[str, dict[str, float]] = {
     },
     "demand_patterns": {
         "hour": 0.0,
+        "step_index": 0.0,
         "multiplier": 1.0,
+    },
+    "energy_options": {
+        "global_efficiency_percent": 65.0,
+        "global_price_per_kwh": 0.0,
+        "demand_charge": 0.0,
+    },
+    "pump_energy": {
+        "efficiency_percent": 65.0,
+        "energy_price_per_kwh": 0.0,
     },
     "households": {
         "occupants": 1.0,
@@ -232,6 +244,9 @@ def _tables_from_request(payload: Any) -> dict[str, pd.DataFrame]:
         "pumps": pd.DataFrame(source.get("pumps") or []),
         "valves": pd.DataFrame(source.get("valves") or []),
         "options": pd.DataFrame(source.get("options") or []),
+        "demand_patterns": pd.DataFrame(source.get("demand_patterns") or []),
+        "energy_options": pd.DataFrame(source.get("energy_options") or []),
+        "pump_energy": pd.DataFrame(source.get("pump_energy") or []),
     }
     for table_name, columns in REQUIRED_COLUMNS.items():
         if table_name not in tables:
