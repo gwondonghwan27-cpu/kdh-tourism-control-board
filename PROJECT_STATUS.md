@@ -14,7 +14,7 @@ The intended final system should:
 6. Recommend control actions and evaluate side effects.
 7. Run repeated real-time or virtual real-time simulations.
 
-Current codebase status: this is an MVP/prototype that combines EPANET INP import, mock network data, aging scoring, fallback hydraulic estimates, live dashboard controls, and rule-based or fallback-simulation-assisted recommendations.
+Current codebase status: this is an MVP/prototype that combines EPANET INP import, aging scoring, fallback hydraulic estimates, live dashboard controls, and rule-based or fallback-simulation-assisted recommendations. Mock data remains available for tests and demos, but the latest user-facing HTML dashboard starts from an empty map instead of auto-rendering the mock network.
 
 ## 2. Current Main Entrypoint
 
@@ -133,7 +133,7 @@ Appears to be a nested copy of the project. It is currently untracked and should
 ## 5. Actually Implemented Features
 
 - Primary Streamlit Cloud entrypoint that embeds the HTML dashboard.
-- Browser-based network dashboard with mock CSV loading.
+- Browser-based network dashboard that starts from an empty EPANET `.inp` intake workflow instead of auto-loading the bundled mock CSV network.
 - GIS-first operating console for pressure heatmap, virtual SCADA health, leak probability, and digital-twin readiness.
 - Map layer toggles for pressure, leak probability, DMA grouping, and asset risk.
 - EPANET `.inp` upload UI and browser-side parser.
@@ -158,9 +158,9 @@ Appears to be a nested copy of the project. It is currently untracked and should
 
 ## 6. Mock/Demo-Level Features
 
-- `data/mock/` is synthetic and deterministic.
+- `data/mock/` is synthetic and deterministic, and is kept for tests, demos, and backend examples rather than as the active dashboard's initial map.
 - Hydraulic results are fallback estimates, not calibrated EPANET/WNTR results.
-- Frontend dashboard simulation in `frontend/app.js` is browser-side and approximate.
+- Frontend dashboard simulation in `frontend/app.js` is browser-side and approximate after an INP model is applied.
 - Runtime edits in the HTML dashboard are browser-session state and are not persisted to a database or canonical project file.
 - Demo scripts and notebooks are demonstration workflows rather than production pipelines.
 - Legacy recognition test data is synthetic or small sample data, not a validated real drawing corpus.

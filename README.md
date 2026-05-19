@@ -67,7 +67,7 @@ Available scenarios:
 streamlit run streamlit_app.py
 ```
 
-This is the primary shareable dashboard. It embeds the same HTML, CSS, JavaScript, and mock CSV data used by the local static dashboard, so Streamlit users see the same water-network board rather than a separate Streamlit recreation.
+This is the primary shareable dashboard. It embeds the same HTML, CSS, and JavaScript used by the local static dashboard, so Streamlit users see the same water-network board rather than a separate Streamlit recreation. The current dashboard starts with an empty network map and waits for an EPANET `.inp` upload before rendering network assets.
 
 The dashboard includes:
 
@@ -128,7 +128,7 @@ For Streamlit Community Cloud:
 3. Set the main file path to `streamlit_app.py`.
 4. Let Streamlit install dependencies from `requirements.txt`.
 
-The embedded HTML dashboard currently uses the mock data bundled in this repository. Runtime edits inside the map are browser-session state, so they are useful for design simulation and demonstrations but are not persisted to a database yet.
+The embedded HTML dashboard does not auto-load the bundled mock network as the first map. Runtime edits inside the map are browser-session state, so they are useful for design simulation and demonstrations but are not persisted to a database yet.
 
 ## EPANET INP Import
 
@@ -207,7 +207,7 @@ Key outputs:
 
 ## Expected Dashboard Views
 
-Without screenshots, a successful run should show:
+Without screenshots, a successful first run should show an empty network map that asks for an EPANET `.inp` upload. After applying an imported model, the dashboard should show:
 
 - a coordinate network map with colored pipe segments and pressure-coded nodes,
 - low-pressure nodes highlighted in red and marginal nodes in orange,
