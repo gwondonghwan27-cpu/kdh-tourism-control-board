@@ -28,6 +28,7 @@ CSV_FILES = [
     "valves.csv",
     "households.csv",
     "household_demand_timeseries.csv",
+    "demand_patterns.csv",
 ]
 
 STREAMLIT_DASHBOARD_HEIGHT = 4200
