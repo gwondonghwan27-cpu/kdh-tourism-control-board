@@ -5,6 +5,7 @@ const DRAWING_SAMPLE_LIMIT = 100;
 const MAP_ZOOM_MIN = 0.6;
 const MAP_ZOOM_MAX = 14;
 const MAP_WHEEL_ZOOM_SENSITIVITY = 0.0014;
+const HYDRAULIC_BUSY_MIN_MS = 800;
 
 const CONTROL_VALID_MAX = {
   "source-head": 250,
@@ -2145,18 +2146,25 @@ async function runSourcePumpOptimization() {
 }
 
 async function runHydraulicSimulationRequest(mode = "analysis") {
-  if (state.backendSimulationPending) return;
+  if (state.backendSimulationPending) {
+    const status = $("backend-simulation-status");
+    if (status) status.textContent = "이미 계산 중입니다. 현재 계산이 끝난 뒤 다시 실행하세요.";
+    return;
+  }
   const analysisButton = $("run-backend-simulation");
   const optimizeButton = $("optimize-source-pump");
   const button = mode === "optimization" ? optimizeButton : analysisButton;
   const status = $("backend-simulation-status");
   const apiBase = String(window.__DRAWING_RECOGNITION_API_BASE__ || "").replace(/\/$/, "");
   const requestPayload = networkSimulationPayload();
+  if (!requestPayload.tables.nodes.length || !requestPayload.tables.pipes.length) {
+    if (status) status.textContent = "EPANET .inp 관망을 먼저 적용한 뒤 계산할 수 있습니다.";
+    return;
+  }
   const requestSignature = liveHydraulicStateSignature(requestPayload);
+  const startedAt = performance.now();
   state.backendSimulationPending = true;
   state.sourcePumpOptimizationPending = mode === "optimization";
-  if (analysisButton) analysisButton.disabled = true;
-  if (optimizeButton) optimizeButton.disabled = true;
   setHydraulicActionBusy(mode === "optimization");
   if (status) status.textContent = mode === "optimization" ? "Source/Pump 최적화 계산 중..." : "현재 조건 정밀 계산 요청 중...";
   render();
@@ -2182,27 +2190,196 @@ async function runHydraulicSimulationRequest(mode = "analysis") {
     }
   } catch (error) {
     console.warn("Backend simulation failed.", error);
-    state.backendSimulation = null;
-    state.backendSimulationSignature = "";
-    if (status) status.textContent = `${mode === "optimization" ? "Source/Pump 최적화" : "현재 조건 정밀 계산"} 실패: ${error.message || "server error"}`;
+    const fallback = mode === "optimization" ? frontendSourcePumpFallback(requestPayload) : null;
+    if (fallback) {
+      state.backendSimulation = fallback;
+      state.backendSimulationSignature = requestSignature;
+      const prediction = fallback.source_pump_prediction;
+      if (status) {
+        status.textContent = `Source/Pump 최적화 완료 · 프론트엔드 fallback · 권장 추가 가압 ${Number(prediction.recommended_boost_m || 0).toFixed(2)} m · 예측 최저압 ${Number(prediction.predicted_min_pressure_m || 0).toFixed(2)} m · 잔여 저압 ${prediction.low_pressure_nodes_after?.length || 0}개`;
+      }
+    } else {
+      state.backendSimulation = null;
+      state.backendSimulationSignature = "";
+      if (status) status.textContent = `${mode === "optimization" ? "Source/Pump 최적화" : "현재 조건 정밀 계산"} 실패: ${error.message || "server error"}`;
+    }
   } finally {
+    const elapsed = performance.now() - startedAt;
+    if (elapsed < HYDRAULIC_BUSY_MIN_MS) await delay(HYDRAULIC_BUSY_MIN_MS - elapsed);
     state.backendSimulationPending = false;
     state.sourcePumpOptimizationPending = false;
     setHydraulicActionBusy(false);
-    if (analysisButton) analysisButton.disabled = false;
-    if (optimizeButton) optimizeButton.disabled = false;
     if (button) button.blur();
     render();
   }
 }
 
 function setHydraulicActionBusy(isBusy) {
+  document.body.classList.toggle("hydraulic-calculation-active", Boolean(isBusy));
+  const controlBand = document.querySelector(".control-band");
+  if (controlBand) {
+    controlBand.classList.toggle("is-hydraulic-busy", Boolean(isBusy));
+    if (isBusy) controlBand.dataset.busyLabel = "Source/Pump 최적화 계산 중... 입력을 잠시 잠급니다.";
+    else delete controlBand.dataset.busyLabel;
+  }
+  $("source-pump-prediction")?.classList.toggle("is-hydraulic-busy", Boolean(isBusy));
   ["run-backend-simulation", "optimize-source-pump"].forEach((id) => {
     const button = $(id);
     if (!button) return;
     button.classList.toggle("hydraulic-action-busy", Boolean(isBusy));
     button.setAttribute("aria-busy", String(Boolean(isBusy)));
   });
+  setHydraulicControlsLocked(Boolean(isBusy));
+}
+
+function setHydraulicControlsLocked(isLocked) {
+  document.querySelectorAll(".control-band input, .control-band select, .control-band button").forEach((control) => {
+    if (isLocked) {
+      if (!Object.prototype.hasOwnProperty.call(control.dataset, "hydraulicPreviousDisabled")) {
+        control.dataset.hydraulicPreviousDisabled = String(control.disabled);
+      }
+      control.disabled = true;
+      return;
+    }
+    if (Object.prototype.hasOwnProperty.call(control.dataset, "hydraulicPreviousDisabled")) {
+      control.disabled = control.dataset.hydraulicPreviousDisabled === "true";
+      delete control.dataset.hydraulicPreviousDisabled;
+    }
+  });
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+}
+
+function frontendSourcePumpFallback(requestPayload) {
+  if (!state.nodes.length || !state.pipes.length) return null;
+  const snapshot = computeSnapshot();
+  const junctions = snapshot.nodes.filter((node) => node.node_type !== "reservoir");
+  if (!junctions.length) return null;
+  const minPressure = Math.min(...junctions.map((node) => Number(node.pressure || 0)));
+  const requiredBoost = clamp(Math.max(0, MIN_PRESSURE - minPressure + 0.5), 0, 120);
+  const predictedMin = minPressure + requiredBoost;
+  const lowAfter = junctions.filter((node) => node.pressure + requiredBoost < MIN_PRESSURE).map((node) => ({
+    node_id: node.node_id,
+    pressure_head_m: Number((node.pressure + requiredBoost).toFixed(3)),
+  }));
+  const sources = buildFrontendSourceRecommendations(snapshot, requiredBoost);
+  const pumps = buildFrontendPumpRecommendations(snapshot, requiredBoost);
+  const totalSourceOutflow = sources.reduce((sum, item) => sum + Number(item.predicted_outflow_lps || 0), 0);
+  const totalPumpFlow = pumps.reduce((sum, item) => sum + Number(item.predicted_flow_lps || 0), 0);
+  const prediction = {
+    feasible: lowAfter.length === 0,
+    recommended_boost_m: requiredBoost,
+    predicted_min_pressure_m: predictedMin,
+    total_source_outflow_lps: totalSourceOutflow,
+    total_pump_flow_lps: totalPumpFlow,
+    low_pressure_nodes_after: lowAfter,
+    sources,
+    pumps,
+    sensitivity_candidates: [],
+    control_plan: [...sources, ...pumps].filter((item) => Number(item.recommended_boost_m || 0) > 0),
+    epanet_validation_passed: false,
+    cache_hit: false,
+    warm_start_used: false,
+  };
+  return {
+    engine: "frontend_streamlit_fallback",
+    hydraulic_formula: state.headlossFormula || "H-W",
+    node_results: snapshot.nodes.map((node) => ({
+      node_id: node.node_id,
+      pressure_head_m: node.node_type === "reservoir" ? node.pressure : node.pressure + requiredBoost,
+      hydraulic_grade_m: node.hydraulicHead + (node.node_type === "reservoir" ? 0 : requiredBoost),
+    })),
+    pipe_results: snapshot.pipes.map((pipe) => ({
+      pipe_id: pipe.pipe_id,
+      flow_lps: pipe.flow_lps,
+      headloss_m: pipe.headDeltaM,
+    })),
+    pressure_violations: lowAfter,
+    headloss_alerts: [],
+    aged_pressure_stress: [],
+    recommendations: [
+      {
+        action_type: "source_pump_frontend_fallback",
+        description: "Streamlit iframe에서 백엔드 API 응답이 없어서 브라우저 계산값으로 Source/Pump 보정안을 표시했습니다.",
+        expected_effect: `예측 최저압 ${predictedMin.toFixed(2)} m`,
+        score: requiredBoost > 0 ? 0.72 : 0.3,
+      },
+    ],
+    source_pump_prediction: prediction,
+    summary: { fallback: true, source: "frontend" },
+    warnings: ["Backend API was unavailable in the Streamlit iframe; frontend fallback optimization was used."],
+  };
+}
+
+function buildFrontendSourceRecommendations(snapshot, requiredBoost) {
+  const sources = state.nodes.filter((node) => node.node_type === "reservoir");
+  const sourceCount = Math.max(sources.length, 1);
+  const sourceFlows = sourceOutflowLookup(snapshot);
+  return sources.map((source) => {
+    const reservoir = state.reservoirs.find((item) => item.node_id === source.node_id) || {};
+    const currentHead = Number(reservoir.head_m || $("source-head")?.value || 0);
+    const flow = Number(sourceFlows.get(source.node_id) || 0);
+    return {
+      source_id: source.node_id,
+      current_head_m: currentHead,
+      recommended_head_m: currentHead + requiredBoost / sourceCount,
+      recommended_boost_m: requiredBoost / sourceCount,
+      predicted_outflow_lps: flow,
+      flow_contribution_percent: 0,
+      optimization_status: requiredBoost > 0 ? "active" : "not_selected",
+    };
+  });
+}
+
+function buildFrontendPumpRecommendations(snapshot, requiredBoost) {
+  const activePumps = state.pumps.filter((pump) => String(pump.status || "on").toLowerCase() !== "off");
+  const pumpCount = Math.max(activePumps.length, 1);
+  return activePumps.map((pump) => {
+    const flow = pumpFlowEstimate(snapshot, pump);
+    const currentHead = Number(pump.base_head_gain_m || 0) * Number(pump.speed_multiplier || 1);
+    const boost = activePumps.length ? requiredBoost / pumpCount : 0;
+    return {
+      pump_id: pump.pump_id,
+      current_head_gain_m: currentHead,
+      recommended_head_gain_m: currentHead + boost,
+      recommended_boost_m: boost,
+      predicted_flow_lps: flow,
+      flow_contribution_percent: 0,
+      estimated_kw: pumpPowerKw(flow, currentHead + boost, pump.efficiency_percent),
+      optimization_status: boost > 0 ? "active" : "not_selected",
+      curve_points: pump.pump_curve_points || [],
+      curve_id: pump.pump_curve_id || "",
+      operating_flow_lps: flow,
+      curve_head_m: currentHead + boost,
+    };
+  });
+}
+
+function sourceOutflowLookup(snapshot) {
+  const outflow = new Map();
+  for (const pipe of snapshot.pipes) {
+    const from = state.nodes.find((node) => node.node_id === pipe.from_node);
+    const to = state.nodes.find((node) => node.node_id === pipe.to_node);
+    if (from?.node_type === "reservoir") outflow.set(from.node_id, (outflow.get(from.node_id) || 0) + Math.abs(Number(pipe.flow_lps || 0)));
+    if (to?.node_type === "reservoir") outflow.set(to.node_id, (outflow.get(to.node_id) || 0) + Math.abs(Number(pipe.flow_lps || 0)));
+  }
+  return outflow;
+}
+
+function pumpFlowEstimate(snapshot, pump) {
+  const matchingPipe = snapshot.pipes.find((pipe) =>
+    (pipe.from_node === pump.from_node && pipe.to_node === pump.to_node) ||
+    (pipe.from_node === pump.to_node && pipe.to_node === pump.from_node) ||
+    pipe.pipe_id === `PUMP_${pump.pump_id}`,
+  );
+  return Math.abs(Number(matchingPipe?.flow_lps || 0));
+}
+
+function pumpPowerKw(flowLps, headM, efficiencyPercent) {
+  const efficiency = clamp(Number(efficiencyPercent || 65) / 100, 0.05, 1);
+  return (WATER_DENSITY_KG_M3 * GRAVITY_M_S2 * Math.max(Number(flowLps || 0), 0) / 1000 * Math.max(Number(headM || 0), 0)) / efficiency / 1000;
 }
 
 async function readJsonResponse(response) {

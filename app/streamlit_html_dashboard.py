@@ -37,7 +37,20 @@ def main() -> None:
         """
         <style>
           .stApp { background: #f6f9fc; }
-          .block-container { padding: 0; max-width: 100%; }
+          .stAppViewContainer,
+          .main,
+          section[data-testid="stMain"],
+          div[data-testid="stMainBlockContainer"],
+          div[data-testid="stVerticalBlock"],
+          div[data-testid="stElementContainer"] {
+            width: 100% !important;
+            max-width: none !important;
+          }
+          .block-container {
+            padding: 0 !important;
+            max-width: none !important;
+            width: 100% !important;
+          }
           header[data-testid="stHeader"] { display: none; }
           [data-testid="stToolbar"],
           [data-testid="stDecoration"],
@@ -48,8 +61,10 @@ def main() -> None:
           }
           iframe {
             display: block;
-            width: 100%;
+            width: 100% !important;
+            max-width: none !important;
             min-height: 100vh;
+            border: 0;
           }
           footer { display: none; }
         </style>
