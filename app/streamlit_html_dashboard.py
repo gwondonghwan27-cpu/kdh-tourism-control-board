@@ -16,20 +16,8 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_DIR = REPO_ROOT / "frontend"
-MOCK_DATA_DIR = REPO_ROOT / "data" / "mock"
 SRC_DIR = REPO_ROOT / "src"
 
-
-CSV_FILES = [
-    "nodes.csv",
-    "pipes.csv",
-    "reservoirs.csv",
-    "pumps.csv",
-    "valves.csv",
-    "households.csv",
-    "household_demand_timeseries.csv",
-    "demand_patterns.csv",
-]
 
 STREAMLIT_DASHBOARD_HEIGHT = 4200
 
@@ -154,7 +142,6 @@ def build_dashboard_html(
     index_html = read_text(FRONTEND_DIR / "index.html")
     css = read_text(FRONTEND_DIR / "styles.css")
     app_js = read_text(FRONTEND_DIR / "app.js")
-    csv_payload = {file_name: read_text(MOCK_DATA_DIR / file_name) for file_name in CSV_FILES}
 
     body = extract_body(index_html)
     body = remove_stylesheet_links(body)
@@ -180,22 +167,14 @@ def build_dashboard_html(
     {body}
     <script>
       window.__STREAMLIT_RECOGNIZED_ASSETS__ = {json.dumps(recognized_assets, ensure_ascii=False)};
-      window.__STREAMLIT_MOCK_CSV__ = {json.dumps(csv_payload, ensure_ascii=False)};
       window.__DRAWING_RECOGNITION_API_BASE__ = {json.dumps(recognition_api_base or "", ensure_ascii=False)};
       const __streamlitOriginalFetch = window.fetch ? window.fetch.bind(window) : null;
       window.fetch = async function(resource, options) {{
         const url = typeof resource === "string" ? resource : resource?.url || "";
         const route = decodeURIComponent(String(url).split("?")[0]);
-        const fileName = route.split("/").pop();
         if (route.endsWith("/api/simulate-network") && window.__DRAWING_RECOGNITION_API_BASE__) {{
           const apiBase = String(window.__DRAWING_RECOGNITION_API_BASE__).replace(/\\/$/, "");
           if (__streamlitOriginalFetch) return __streamlitOriginalFetch(`${{apiBase}}/api/simulate-network`, options);
-        }}
-        if (Object.prototype.hasOwnProperty.call(window.__STREAMLIT_MOCK_CSV__, fileName)) {{
-          return new Response(window.__STREAMLIT_MOCK_CSV__[fileName], {{
-            status: 200,
-            headers: {{ "Content-Type": "text/csv;charset=utf-8" }},
-          }});
         }}
         if (route.endsWith("/api/simulate-network")) {{
           return new Response(JSON.stringify({{

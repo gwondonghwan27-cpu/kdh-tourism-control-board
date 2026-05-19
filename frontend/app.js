@@ -199,68 +199,6 @@ function emptyDashboardData() {
   };
 }
 
-function parseCsv(text) {
-  const rows = parseCsvRows(text);
-  if (!rows.length) return [];
-  const [headers, ...body] = rows;
-  return body
-    .filter((row) => row.some((value) => String(value || "").trim() !== ""))
-    .map((row) => Object.fromEntries(headers.map((key, index) => [key, parseValue(row[index])])));
-}
-
-function parseCsvRows(text) {
-  const rows = [];
-  let row = [];
-  let cell = "";
-  let quoted = false;
-  const source = String(text || "").replace(/^\uFEFF/, "");
-  for (let index = 0; index < source.length; index += 1) {
-    const char = source[index];
-    const next = source[index + 1];
-    if (quoted) {
-      if (char === '"' && next === '"') {
-        cell += '"';
-        index += 1;
-      } else if (char === '"') {
-        quoted = false;
-      } else {
-        cell += char;
-      }
-      continue;
-    }
-    if (char === '"') {
-      quoted = true;
-    } else if (char === ",") {
-      row.push(cell);
-      cell = "";
-    } else if (char === "\n") {
-      row.push(cell);
-      rows.push(row);
-      row = [];
-      cell = "";
-    } else if (char !== "\r") {
-      cell += char;
-    }
-  }
-  row.push(cell);
-  if (row.length > 1 || row[0] !== "") rows.push(row);
-  return rows;
-}
-
-function parseValue(value) {
-  if (value === undefined || value === "") return "";
-  const trimmed = String(value).trim();
-  if (/^[\[{]/.test(trimmed)) {
-    try {
-      return JSON.parse(trimmed);
-    } catch {
-      return value;
-    }
-  }
-  const number = Number(value);
-  return Number.isFinite(number) && value.trim() !== "" ? number : value;
-}
-
 function cloneRows(rows) {
   return rows.map((row) => ({ ...row }));
 }
