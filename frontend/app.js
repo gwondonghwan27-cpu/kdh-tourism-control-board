@@ -2205,6 +2205,7 @@ async function runHydraulicSimulationRequest(mode = "analysis") {
     });
     const payload = await readJsonResponse(response);
     if (!response.ok) throw new Error(payload.error || `simulation API failed (${response.status})`);
+    validateHydraulicSimulationPayload(payload);
     const prediction = payload.source_pump_prediction;
     const boost = Number(prediction?.recommended_boost_m || 0);
     if (mode === "optimization") {
@@ -2225,7 +2226,7 @@ async function runHydraulicSimulationRequest(mode = "analysis") {
     }
   } catch (error) {
     console.warn("Backend simulation failed.", error);
-    const fallback = mode === "optimization" ? frontendSourcePumpFallback(requestPayload) : null;
+    const fallback = mode === "optimization" && !window.__STREAMLIT_EMBEDDED__ ? frontendSourcePumpFallback(requestPayload) : null;
     if (fallback) {
       setOptimizedControlBoost(fallback.source_pump_prediction?.recommended_boost_m || 0);
       state.backendSimulation = fallback;
@@ -2451,6 +2452,18 @@ async function readJsonResponse(response) {
   } catch (error) {
     return { error: text.slice(0, 300) || error.message };
   }
+}
+
+function validateHydraulicSimulationPayload(payload) {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("simulation API returned an empty payload");
+  }
+  const hasPrediction = payload.source_pump_prediction && typeof payload.source_pump_prediction === "object";
+  const hasNodes = Array.isArray(payload.node_results);
+  const hasPipes = Array.isArray(payload.pipe_results);
+  if (hasPrediction && hasNodes && hasPipes) return;
+  const detail = payload.error ? String(payload.error).slice(0, 180) : "missing source_pump_prediction, node_results, or pipe_results";
+  throw new Error(`simulation API returned an invalid payload: ${detail}`);
 }
 
 function networkSimulationPayload(options = {}) {

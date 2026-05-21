@@ -219,8 +219,19 @@ def build_dashboard_html(
     {body}
     <script>
       window.__STREAMLIT_RECOGNIZED_ASSETS__ = {json.dumps(recognized_assets, ensure_ascii=False)};
+      window.__STREAMLIT_EMBEDDED__ = true;
       window.__DRAWING_RECOGNITION_API_BASE__ = {json.dumps(recognition_api_base or "", ensure_ascii=False)};
       const __streamlitOriginalFetch = window.fetch ? window.fetch.bind(window) : null;
+      function __streamlitApiUrl(route) {{
+        try {{
+          if (document.referrer) return new URL(route, document.referrer).toString();
+        }} catch (error) {{}}
+        try {{
+          return new URL(route, window.location.href).toString();
+        }} catch (error) {{
+          return route;
+        }}
+      }}
       window.fetch = async function(resource, options) {{
         const url = typeof resource === "string" ? resource : resource?.url || "";
         const route = decodeURIComponent(String(url).split("?")[0]);
@@ -240,7 +251,7 @@ def build_dashboard_html(
           if (__streamlitOriginalFetch) return __streamlitOriginalFetch(`${{apiBase}}/api/simulate-network`, options);
         }}
         if (route.endsWith("/api/simulate-network")) {{
-          if (__streamlitOriginalFetch) return __streamlitOriginalFetch(resource, options);
+          if (__streamlitOriginalFetch) return __streamlitOriginalFetch(__streamlitApiUrl("/api/simulate-network"), options);
           return new Response(JSON.stringify({{
             error: "Streamlit simulation API is not available for this operation."
           }}), {{

@@ -50,7 +50,8 @@ app = App(
     APP_DIR / "streamlit_html_dashboard.py",
     routes=[
         Route("/api/health", health, methods=["GET", "HEAD"]),
+        Route("/api/health/", health, methods=["GET", "HEAD"]),
         Route("/api/simulate-network", simulate_network, methods=["POST", "OPTIONS"]),
+        Route("/api/simulate-network/", simulate_network, methods=["POST", "OPTIONS"]),
     ],
 )
-
