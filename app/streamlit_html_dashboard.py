@@ -230,17 +230,25 @@ def build_dashboard_html(
       window.__DRAWING_RECOGNITION_API_BASE__ = {json.dumps(recognition_api_base or "", ensure_ascii=False)};
       const __streamlitOriginalFetch = window.fetch ? window.fetch.bind(window) : null;
       function __streamlitApiUrl(route) {{
+        const apiRoute = String(route || "").startsWith("/") ? String(route || "") : `/${{route || ""}}`;
+        const fromOrigin = (base) => {{
+          const text = String(base || "");
+          if (!text) return "";
+          return new URL(apiRoute, new URL(text).origin).toString();
+        }};
         try {{
           const ancestorOrigin = window.location.ancestorOrigins && window.location.ancestorOrigins[0];
-          if (ancestorOrigin) return new URL(route, ancestorOrigin).toString();
+          const url = fromOrigin(ancestorOrigin);
+          if (url) return url;
         }} catch (error) {{}}
         try {{
-          if (document.referrer) return new URL(route, document.referrer).toString();
+          const url = fromOrigin(document.referrer);
+          if (url) return url;
         }} catch (error) {{}}
         try {{
-          return new URL(route, window.location.href).toString();
+          return fromOrigin(window.location.href) || apiRoute;
         }} catch (error) {{
-          return route;
+          return apiRoute;
         }}
       }}
       window.fetch = async function(resource, options) {{
