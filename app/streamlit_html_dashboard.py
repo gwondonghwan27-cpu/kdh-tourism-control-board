@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import json
+import os
 import re
 import socket
 import subprocess
@@ -98,6 +99,14 @@ def render_streamlit_recognition_controls(st: Any) -> dict[str, Any] | None:
 def ensure_local_recognition_api(st: Any) -> str | None:
     """Start the local dashboard API used by the embedded HTML dashboard."""
 
+    configured_api_base = configured_recognition_api_base(st)
+    if configured_api_base:
+        if is_recognition_api_ready(configured_api_base):
+            st.sidebar.caption(f"관망 계산 API: {configured_api_base}")
+            return configured_api_base
+        st.sidebar.warning("설정된 관망 계산 API에 연결할 수 없습니다. Streamlit 내장 fallback 계산으로 동작합니다.")
+        return None
+
     for port in range(5181, 5200):
         api_base = f"http://127.0.0.1:{port}"
         if is_recognition_api_ready(api_base):
@@ -128,6 +137,29 @@ def ensure_local_recognition_api(st: Any) -> str | None:
                 break
             time.sleep(0.1)
     st.sidebar.warning("관망 계산 API를 시작하지 못했습니다. 정밀 해석 기능만 제한될 수 있습니다.")
+    return None
+
+
+def configured_recognition_api_base(st: Any) -> str | None:
+    """Return an externally reachable API base for hosted Streamlit deployments."""
+
+    candidates: list[Any] = [
+        os.environ.get("DASHBOARD_API_BASE_URL"),
+        os.environ.get("DRAWING_RECOGNITION_API_BASE"),
+    ]
+    try:
+        candidates.extend(
+            [
+                st.secrets.get("DASHBOARD_API_BASE_URL"),
+                st.secrets.get("DRAWING_RECOGNITION_API_BASE"),
+            ],
+        )
+    except Exception:
+        pass
+    for candidate in candidates:
+        api_base = str(candidate or "").strip().rstrip("/")
+        if api_base:
+            return api_base
     return None
 
 
@@ -191,6 +223,17 @@ def build_dashboard_html(
         const route = decodeURIComponent(String(url).split("?")[0]);
         if (route.endsWith("/api/simulate-network") && window.__DRAWING_RECOGNITION_API_BASE__) {{
           const apiBase = String(window.__DRAWING_RECOGNITION_API_BASE__).replace(/\\/$/, "");
+          const isLoopbackApi = /^(https?:\\/\\/)?(127\\.0\\.0\\.1|localhost)(:|\\/|$)/i.test(apiBase);
+          const hostContext = `${{window.location.hostname || ""}} ${{document.referrer || ""}}`;
+          const isLocalStreamlit = /(^|\\/\\/)(localhost|127\\.0\\.0\\.1)(:|\\/|$)/i.test(hostContext);
+          if (isLoopbackApi && !isLocalStreamlit) {{
+            return new Response(JSON.stringify({{
+              error: "Loopback API is not reachable from hosted Streamlit iframe."
+            }}), {{
+              status: 501,
+              headers: {{ "Content-Type": "application/json;charset=utf-8" }},
+            }});
+          }}
           if (__streamlitOriginalFetch) return __streamlitOriginalFetch(`${{apiBase}}/api/simulate-network`, options);
         }}
         if (route.endsWith("/api/simulate-network")) {{
