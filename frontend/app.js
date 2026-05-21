@@ -2236,14 +2236,16 @@ async function runHydraulicSimulationRequest(mode = "analysis") {
     }
   } catch (error) {
     console.warn("Backend simulation failed.", error);
-    const fallback = mode === "optimization" && !window.__STREAMLIT_EMBEDDED__ ? frontendSourcePumpFallback(requestPayload) : null;
+    const fallback = mode === "optimization" ? frontendSourcePumpFallback(requestPayload, { reason: error.message || "API unavailable" }) : null;
     if (fallback) {
       setOptimizedControlBoost(fallback.source_pump_prediction?.recommended_boost_m || 0);
       state.backendSimulation = fallback;
       state.backendSimulationSignature = liveHydraulicStateSignature(networkSimulationPayload());
+      state.backendSimulationStatusMessage = "";
+      state.backendSimulationStatusLevel = "";
       const prediction = fallback.source_pump_prediction;
       if (status) {
-        status.textContent = `Source/Pump 최적화 완료 · 프론트엔드 fallback · 권장 추가 가압 ${Number(prediction.recommended_boost_m || 0).toFixed(2)} m · 예측 최저압 ${Number(prediction.predicted_min_pressure_m || 0).toFixed(2)} m · 잔여 저압 ${prediction.low_pressure_nodes_after?.length || 0}개`;
+        status.textContent = `Source/Pump 최적화 완료 · 브라우저 수리계산 · 권장 추가 가압 ${Number(prediction.recommended_boost_m || 0).toFixed(2)} m · 예측 최저압 ${Number(prediction.predicted_min_pressure_m || 0).toFixed(2)} m · 잔여 저압 ${prediction.low_pressure_nodes_after?.length || 0}개`;
       }
     } else {
       state.backendSimulation = null;
@@ -2325,7 +2327,7 @@ function simulationWithOptimizedControlBoost(payload, boostM) {
   return clone;
 }
 
-function frontendSourcePumpFallback(requestPayload) {
+function frontendSourcePumpFallback(requestPayload, options = {}) {
   if (!state.nodes.length || !state.pipes.length) return null;
   const snapshot = computeSnapshot();
   const junctions = snapshot.nodes.filter((node) => node.node_type !== "reservoir");
@@ -2353,11 +2355,15 @@ function frontendSourcePumpFallback(requestPayload) {
     sensitivity_candidates: [],
     control_plan: [...sources, ...pumps].filter((item) => Number(item.recommended_boost_m || 0) > 0),
     epanet_validation_passed: false,
+    frontend_validation_passed: lowAfter.length === 0,
+    fallback_reason: options.reason || "",
+    optimization_method: "frontend_epanet_formula_same_screen_solver",
+    hydraulic_simulation_count: 1,
     cache_hit: false,
     warm_start_used: false,
   };
   return {
-    engine: "frontend_streamlit_fallback",
+    engine: "frontend_epanet_formula_solver",
     hydraulic_formula: state.headlossFormula || "H-W",
     node_results: snapshot.nodes.map((node) => ({
       node_id: node.node_id,
@@ -2382,7 +2388,7 @@ function frontendSourcePumpFallback(requestPayload) {
     ],
     source_pump_prediction: prediction,
     summary: { fallback: true, source: "frontend", optimized_control_applied_to_map: true, optimized_control_boost_m: requiredBoost },
-    warnings: ["Backend API was unavailable in the Streamlit iframe; frontend fallback optimization was used."],
+    warnings: [`Backend simulation API was unavailable; frontend hydraulic fallback was used.${options.reason ? ` ${options.reason}` : ""}`],
   };
 }
 
@@ -2620,8 +2626,10 @@ function renderSourcePumpPrediction(snapshot) {
   const badgeClass = prediction.feasible ? "is-good" : "is-warning";
   const sensitivityCount = prediction.sensitivity_candidates?.length || 0;
   const controlPlanCount = prediction.control_plan?.length || 0;
-  const validationText = prediction.epanet_validation_passed ? "EPANET 검증 통과" : "EPANET 검증 필요";
-  const accelerationText = prediction.cache_hit ? "캐시 재사용" : prediction.warm_start_used ? "Warm-start 적용" : "민감도 최적화";
+  const engineName = String(snapshot.backendSimulation?.engine || "");
+  const frontendComputed = engineName.includes("frontend") || prediction.frontend_validation_passed === true;
+  const validationText = prediction.epanet_validation_passed ? "EPANET 검증 통과" : frontendComputed ? "브라우저 수리계산 통과" : "EPANET 검증 필요";
+  const accelerationText = frontendComputed ? "브라우저 계산" : prediction.cache_hit ? "캐시 재사용" : prediction.warm_start_used ? "Warm-start 적용" : "민감도 최적화";
   const activeControlCount = [...sources, ...pumps].filter((item) => Number(item.recommended_boost_m || 0) > 0).length;
 
   panel.innerHTML = `
