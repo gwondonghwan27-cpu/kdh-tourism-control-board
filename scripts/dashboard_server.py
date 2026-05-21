@@ -255,18 +255,14 @@ def _tables_from_request(payload: Any) -> dict[str, pd.DataFrame]:
             for column in columns:
                 if column not in tables[table_name].columns:
                     tables[table_name][column] = _default_column_value(table_name, column, len(tables[table_name]))
-    if not tables["reservoirs"].empty and "reservoir_id" in tables["reservoirs"].columns:
-        missing = tables["reservoirs"]["reservoir_id"].astype(str).isin({"", "nan", "None"})
-        tables["reservoirs"].loc[missing, "reservoir_id"] = [
-            f"RES_API_{index + 1}" for index in range(int(missing.sum()))
-        ]
+    _normalize_reservoir_ids(tables)
     _coerce_table_columns(tables)
     return tables
 
 
 def _default_column_value(table_name: str, column: str, length: int) -> Any:
     if table_name == "reservoirs" and column == "reservoir_id":
-        return [f"RES_API_{index + 1}" for index in range(length)]
+        return ""
     if column in NUMERIC_COLUMN_DEFAULTS.get(table_name, {}):
         return NUMERIC_COLUMN_DEFAULTS[table_name][column]
     if table_name == "nodes" and column == "node_type":
@@ -280,6 +276,22 @@ def _default_column_value(table_name: str, column: str, length: int) -> Any:
     if column in {"valve_type"}:
         return "isolation"
     return ""
+
+
+def _normalize_reservoir_ids(tables: dict[str, pd.DataFrame]) -> None:
+    reservoirs = tables.get("reservoirs")
+    if reservoirs is None or reservoirs.empty:
+        return
+    if "reservoir_id" not in reservoirs.columns:
+        reservoirs["reservoir_id"] = ""
+    if "node_id" not in reservoirs.columns:
+        reservoirs["node_id"] = ""
+    missing = reservoirs["reservoir_id"].astype(str).isin({"", "nan", "None"})
+    fallback_ids = []
+    for index, reservoir in reservoirs.loc[missing].iterrows():
+        node_id = str(reservoir.get("node_id") or "")
+        fallback_ids.append(node_id if node_id and node_id not in {"nan", "None"} else f"RES_API_{index + 1}")
+    reservoirs.loc[missing, "reservoir_id"] = fallback_ids
 
 
 def _coerce_table_columns(tables: dict[str, pd.DataFrame]) -> None:

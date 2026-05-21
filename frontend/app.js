@@ -960,6 +960,7 @@ function parseEpanetInp(text, options = {}) {
     const nodeId = String(row[0] || `J_INP_${index + 1}`);
     const point = coordinates.get(nodeId) || fallbackInpPoint(index);
     return {
+      reservoir_id: nodeId,
       node_id: nodeId,
       x: point.x,
       y: point.y,
@@ -1070,7 +1071,7 @@ function parseEpanetInp(text, options = {}) {
   const assets = {
     nodes,
     pipes: [...pumpConnectorPipes, ...pipes],
-    reservoirs: reservoirs.map((reservoir) => ({ node_id: reservoir.node_id, head_m: reservoir.head_m })),
+    reservoirs: reservoirs.map((reservoir) => ({ reservoir_id: reservoir.reservoir_id || reservoir.node_id, node_id: reservoir.node_id, head_m: reservoir.head_m })),
     pumps,
     demand_patterns: demandPatterns,
     energy_options: energy.options,
@@ -1567,6 +1568,7 @@ function normalizeDashboardAssetsForEditing(assets) {
     .filter((reservoir) => nodeIds.has(String(reservoir.node_id || "")))
     .map((reservoir) => ({
       node_id: String(reservoir.node_id),
+      reservoir_id: String(reservoir.reservoir_id || reservoir.node_id),
       head_m: Number(reservoir.head_m ?? 58),
     }));
   let reservoirNode = nodes.find((node) => node.node_type === "reservoir");
@@ -1585,7 +1587,7 @@ function normalizeDashboardAssetsForEditing(assets) {
     nodeIds.add(reservoirNode.node_id);
   }
   if (reservoirNode && !reservoirs.some((reservoir) => reservoir.node_id === reservoirNode.node_id)) {
-    reservoirs = [{ node_id: reservoirNode.node_id, head_m: 58 }, ...reservoirs];
+    reservoirs = [{ reservoir_id: reservoirNode.node_id, node_id: reservoirNode.node_id, head_m: 58 }, ...reservoirs];
   }
   const firstJunction = nodes.find((node) => node.node_type !== "reservoir");
   if (reservoirNode && firstJunction && !pipes.some((pipe) => pipe.from_node === reservoirNode.node_id || pipe.to_node === reservoirNode.node_id)) {
@@ -2388,7 +2390,8 @@ function buildFrontendSourceRecommendations(snapshot, requiredBoost) {
     const currentHead = Number(reservoir.head_m || $("source-head")?.value || 0);
     const flow = Number(sourceFlows.get(source.node_id) || 0);
     return {
-      source_id: source.node_id,
+      source_id: reservoir.reservoir_id || source.node_id,
+      node_id: source.node_id,
       current_head_m: currentHead,
       recommended_head_m: currentHead + requiredBoost / sourceCount,
       recommended_boost_m: requiredBoost / sourceCount,
@@ -4889,6 +4892,7 @@ function addSourcePumpImmediateLegacy() {
     dma_id: "SOURCE",
   };
   const reservoir = {
+    reservoir_id: sourceId,
     node_id: sourceId,
     head_m: Number($("source-design-head").value || 58),
   };
@@ -5002,6 +5006,7 @@ function confirmPendingSourcePump() {
   };
   delete sourceNode.locked;
   const reservoir = {
+    reservoir_id: sourceId,
     node_id: sourceId,
     head_m: Number($("source-design-head").value || 58),
   };

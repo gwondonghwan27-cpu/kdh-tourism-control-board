@@ -97,7 +97,7 @@ def render_streamlit_recognition_controls(st: Any) -> dict[str, Any] | None:
 def ensure_local_recognition_api(st: Any) -> str | None:
     """Start the local dashboard API used by the embedded HTML dashboard."""
 
-    for port in range(5181, 5190):
+    for port in range(5181, 5200):
         api_base = f"http://127.0.0.1:{port}"
         if is_recognition_api_ready(api_base):
             st.sidebar.caption(f"관망 계산 API: {api_base}")
@@ -119,7 +119,7 @@ def ensure_local_recognition_api(st: Any) -> str | None:
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         st.session_state.streamlit_recognition_api_process = process.pid
-        for _ in range(20):
+        for _ in range(80):
             if is_recognition_api_ready(api_base):
                 st.sidebar.caption(f"관망 계산 API: {api_base}")
                 return api_base
@@ -138,7 +138,7 @@ def is_port_available(host: str, port: int) -> bool:
 
 def is_recognition_api_ready(api_base: str) -> bool:
     try:
-        with urllib.request.urlopen(f"{api_base}/api/health", timeout=0.5) as response:
+        with urllib.request.urlopen(f"{api_base}/api/health", timeout=1.5) as response:
             payload = json.loads(response.read().decode("utf-8") or "{}")
             return (
                 response.status == 200
