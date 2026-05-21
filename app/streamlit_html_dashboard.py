@@ -220,6 +220,69 @@ def build_dashboard_html(
           return apiRoute;
         }}
       }}
+      function __streamlitApiCandidates(route) {{
+        const apiRoute = String(route || "").startsWith("/") ? String(route || "") : `/${{route || ""}}`;
+        const candidates = [];
+        const add = (url) => {{
+          const text = String(url || "");
+          if (text && !candidates.includes(text)) candidates.push(text);
+        }};
+        const addFromBase = (base) => {{
+          const text = String(base || "");
+          if (!text) return;
+          try {{
+            const parsed = new URL(text);
+            add(new URL(apiRoute, parsed.origin).toString());
+            const path = parsed.pathname || "/";
+            const basePath = path.endsWith("/") ? path : path.slice(0, path.lastIndexOf("/") + 1);
+            add(new URL(apiRoute.replace(/^\\//, ""), `${{parsed.origin}}${{basePath}}`).toString());
+          }} catch (error) {{}}
+        }};
+        try {{
+          const ancestorOrigin = window.location.ancestorOrigins && window.location.ancestorOrigins[0];
+          addFromBase(ancestorOrigin);
+        }} catch (error) {{}}
+        addFromBase(document.referrer);
+        addFromBase(window.location.href);
+        add(apiRoute);
+        return candidates;
+      }}
+      async function __fetchStreamlitApi(route, options) {{
+        if (!__streamlitOriginalFetch) {{
+          return new Response(JSON.stringify({{ error: "Streamlit simulation API is not available for this operation." }}), {{
+            status: 501,
+            headers: {{ "Content-Type": "application/json;charset=utf-8" }},
+          }});
+        }}
+        let lastError = "";
+        for (const candidate of __streamlitApiCandidates(route)) {{
+          try {{
+            const response = await __streamlitOriginalFetch(candidate, options);
+            const text = await response.clone().text();
+            const contentType = response.headers.get("content-type") || "";
+            const trimmed = text.trim().toLowerCase();
+            const htmlPayload = contentType.includes("text/html") || trimmed.startsWith("<!doctype html") || trimmed.startsWith("<html");
+            if (htmlPayload) {{
+              lastError = `API route returned HTML at ${{candidate}}`;
+              continue;
+            }}
+            window.__LAST_SIMULATION_API_URL__ = candidate;
+            return new Response(text, {{
+              status: response.status,
+              statusText: response.statusText,
+              headers: {{ "Content-Type": contentType || "application/json;charset=utf-8" }},
+            }});
+          }} catch (error) {{
+            lastError = `${{candidate}}: ${{error?.message || error}}`;
+          }}
+        }}
+        return new Response(JSON.stringify({{
+          error: `Streamlit simulation API did not return JSON. ${{lastError || "No candidate route was reachable."}}`
+        }}), {{
+          status: 502,
+          headers: {{ "Content-Type": "application/json;charset=utf-8" }},
+        }});
+      }}
       window.fetch = async function(resource, options) {{
         const url = typeof resource === "string" ? resource : resource?.url || "";
         const route = decodeURIComponent(String(url).split("?")[0]);
@@ -229,18 +292,12 @@ def build_dashboard_html(
           const hostContext = `${{window.location.hostname || ""}} ${{document.referrer || ""}}`;
           const isLocalStreamlit = /(^|\\/\\/)(localhost|127\\.0\\.0\\.1)(:|\\/|$)/i.test(hostContext);
           if (isLoopbackApi && !isLocalStreamlit) {{
-            if (__streamlitOriginalFetch) return __streamlitOriginalFetch(__streamlitApiUrl("/api/simulate-network"), options);
+            return __fetchStreamlitApi("/api/simulate-network", options);
           }}
           if (__streamlitOriginalFetch) return __streamlitOriginalFetch(`${{apiBase}}/api/simulate-network`, options);
         }}
         if (route.endsWith("/api/simulate-network")) {{
-          if (__streamlitOriginalFetch) return __streamlitOriginalFetch(__streamlitApiUrl("/api/simulate-network"), options);
-          return new Response(JSON.stringify({{
-            error: "Streamlit simulation API is not available for this operation."
-          }}), {{
-            status: 501,
-            headers: {{ "Content-Type": "application/json;charset=utf-8" }},
-          }});
+          return __fetchStreamlitApi("/api/simulate-network", options);
         }}
         if (__streamlitOriginalFetch) return __streamlitOriginalFetch(resource, options);
         return new Response("", {{ status: 404 }});

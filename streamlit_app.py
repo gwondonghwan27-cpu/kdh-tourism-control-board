@@ -17,9 +17,14 @@ for path in (APP_DIR, SRC_DIR, REPO_ROOT):
         sys.path.insert(0, str(path))
 
 from streamlit_api_routes import STREAMLIT_API_ROUTES  # noqa: E402
+from streamlit_html_dashboard import main  # noqa: E402
 
 
 app = App(
     APP_DIR / "streamlit_html_dashboard.py",
     routes=STREAMLIT_API_ROUTES,
 )
+
+
+if __name__ == "__main__":
+    main()

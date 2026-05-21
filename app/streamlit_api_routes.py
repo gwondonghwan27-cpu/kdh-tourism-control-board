@@ -48,4 +48,8 @@ STREAMLIT_API_ROUTES = [
     Route("/api/health/", health, methods=["GET", "HEAD"]),
     Route("/api/simulate-network", simulate_network, methods=["POST", "OPTIONS"]),
     Route("/api/simulate-network/", simulate_network, methods=["POST", "OPTIONS"]),
+    Route("/{prefix:path}/api/health", health, methods=["GET", "HEAD"]),
+    Route("/{prefix:path}/api/health/", health, methods=["GET", "HEAD"]),
+    Route("/{prefix:path}/api/simulate-network", simulate_network, methods=["POST", "OPTIONS"]),
+    Route("/{prefix:path}/api/simulate-network/", simulate_network, methods=["POST", "OPTIONS"]),
 ]
