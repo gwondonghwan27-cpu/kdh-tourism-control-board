@@ -6,13 +6,11 @@ import html
 import json
 import os
 import re
-import socket
-import subprocess
 import sys
-import time
 import urllib.request
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from streamlit.starlette import App
 
@@ -108,43 +106,21 @@ def ensure_local_recognition_api(st: Any) -> str | None:
 
     configured_api_base = configured_recognition_api_base(st)
     if configured_api_base:
-        if is_recognition_api_ready(configured_api_base):
+        if is_loopback_api_base(configured_api_base):
+            st.sidebar.warning("localhost API 주소는 배포된 Streamlit 브라우저에서 접근할 수 없어 동일 서버 API를 사용합니다.")
+        elif is_recognition_api_ready(configured_api_base):
             st.sidebar.caption(f"관망 계산 API: {configured_api_base}")
             return configured_api_base
-        st.sidebar.warning("설정된 관망 계산 API에 연결할 수 없습니다. 정밀 계산은 동일 Python API가 연결될 때만 실행됩니다.")
-        return None
+        else:
+            st.sidebar.warning("설정된 관망 계산 API에 연결할 수 없습니다. 동일 서버 API를 사용합니다.")
 
-    for port in range(5181, 5200):
-        api_base = f"http://127.0.0.1:{port}"
-        if is_recognition_api_ready(api_base):
-            st.sidebar.caption(f"관망 계산 API: {api_base}")
-            return api_base
-        if not is_port_available("127.0.0.1", port):
-            continue
-        process = subprocess.Popen(
-            [
-                sys.executable,
-                str(REPO_ROOT / "scripts" / "dashboard_server.py"),
-                "--host",
-                "127.0.0.1",
-                "--port",
-                str(port),
-            ],
-            cwd=str(REPO_ROOT),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
-        st.session_state.streamlit_recognition_api_process = process.pid
-        for _ in range(80):
-            if is_recognition_api_ready(api_base):
-                st.sidebar.caption(f"관망 계산 API: {api_base}")
-                return api_base
-            if process.poll() is not None:
-                break
-            time.sleep(0.1)
     st.sidebar.caption("관망 계산 API: Streamlit 동일 서버 /api/simulate-network")
     return None
+
+
+def is_loopback_api_base(api_base: str) -> bool:
+    host = urlparse(str(api_base or "")).hostname or ""
+    return host.lower() in {"127.0.0.1", "localhost", "::1"}
 
 
 def configured_recognition_api_base(st: Any) -> str | None:
@@ -168,12 +144,6 @@ def configured_recognition_api_base(st: Any) -> str | None:
         if api_base:
             return api_base
     return None
-
-
-def is_port_available(host: str, port: int) -> bool:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.settimeout(0.2)
-        return sock.connect_ex((host, port)) != 0
 
 
 def is_recognition_api_ready(api_base: str) -> bool:
@@ -259,12 +229,7 @@ def build_dashboard_html(
           const hostContext = `${{window.location.hostname || ""}} ${{document.referrer || ""}}`;
           const isLocalStreamlit = /(^|\\/\\/)(localhost|127\\.0\\.0\\.1)(:|\\/|$)/i.test(hostContext);
           if (isLoopbackApi && !isLocalStreamlit) {{
-            return new Response(JSON.stringify({{
-              error: "Loopback API is not reachable from hosted Streamlit iframe."
-            }}), {{
-              status: 501,
-              headers: {{ "Content-Type": "application/json;charset=utf-8" }},
-            }});
+            if (__streamlitOriginalFetch) return __streamlitOriginalFetch(__streamlitApiUrl("/api/simulate-network"), options);
           }}
           if (__streamlitOriginalFetch) return __streamlitOriginalFetch(`${{apiBase}}/api/simulate-network`, options);
         }}
