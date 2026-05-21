@@ -2225,14 +2225,6 @@ async function runHydraulicSimulationRequest(mode = "analysis") {
     }
   } catch (error) {
     console.warn("Backend simulation failed.", error);
-    if (window.__REQUIRE_BACKEND_SIMULATION__) {
-      state.backendSimulation = null;
-      state.backendSimulationSignature = "";
-      if (status) {
-        status.textContent = `${mode === "optimization" ? "Source/Pump 최적화" : "현재 조건 정밀 계산"} 실패: Streamlit 계산 API 연결이 필요합니다.`;
-      }
-      return;
-    }
     const fallback = mode === "optimization" ? frontendSourcePumpFallback(requestPayload) : null;
     if (fallback) {
       setOptimizedControlBoost(fallback.source_pump_prediction?.recommended_boost_m || 0);

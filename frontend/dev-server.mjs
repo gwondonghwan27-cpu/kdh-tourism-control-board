@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const serverDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(serverDir, "..");
 const port = 5173;
+const dashboardApiVersion = "2026-05-21-source-id-alignment";
 const mime = {
   ".html": "text/html;charset=utf-8",
   ".js": "text/javascript;charset=utf-8",
@@ -23,7 +24,7 @@ http
       return;
     }
     if (request.method === "GET" && route === "/api/health") {
-      sendJson(response, 200, { ok: true, service: "drawing-recognition-api", supports_cors: true });
+      sendJson(response, 200, { ok: true, service: "drawing-recognition-api", supports_cors: true, dashboard_api_version: dashboardApiVersion });
       return;
     }
     if (request.method === "POST" && route === "/api/simulate-network") {

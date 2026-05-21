@@ -107,6 +107,9 @@ def ensure_local_recognition_api(st: Any) -> str | None:
         st.sidebar.warning("설정된 관망 계산 API에 연결할 수 없습니다. Streamlit 내장 fallback 계산으로 동작합니다.")
         return None
 
+    st.sidebar.caption("관망 계산 API: Streamlit 동일 서버 /api/simulate-network")
+    return None
+
     for port in range(5181, 5200):
         api_base = f"http://127.0.0.1:{port}"
         if is_recognition_api_ready(api_base):
@@ -217,7 +220,6 @@ def build_dashboard_html(
     <script>
       window.__STREAMLIT_RECOGNIZED_ASSETS__ = {json.dumps(recognized_assets, ensure_ascii=False)};
       window.__DRAWING_RECOGNITION_API_BASE__ = {json.dumps(recognition_api_base or "", ensure_ascii=False)};
-      window.__REQUIRE_BACKEND_SIMULATION__ = true;
       const __streamlitOriginalFetch = window.fetch ? window.fetch.bind(window) : null;
       window.fetch = async function(resource, options) {{
         const url = typeof resource === "string" ? resource : resource?.url || "";
@@ -238,8 +240,9 @@ def build_dashboard_html(
           if (__streamlitOriginalFetch) return __streamlitOriginalFetch(`${{apiBase}}/api/simulate-network`, options);
         }}
         if (route.endsWith("/api/simulate-network")) {{
+          if (__streamlitOriginalFetch) return __streamlitOriginalFetch(resource, options);
           return new Response(JSON.stringify({{
-            error: "Local Python API is not available for this operation."
+            error: "Streamlit simulation API is not available for this operation."
           }}), {{
             status: 501,
             headers: {{ "Content-Type": "application/json;charset=utf-8" }},
