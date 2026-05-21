@@ -1913,7 +1913,7 @@ function render() {
   const timeIndex = currentTimeIndex();
 
   $("time-label").textContent = `${formatMinute(selectedMinute)} #${timeIndex + 1}/${state.timeline.length}`;
-  $("timeline-title").textContent = `${formatMinute(selectedMinute)} #${timeIndex + 1} 관망 상태`;
+  $("timeline-title").textContent = `${formatMinute(selectedMinute)} #${timeIndex + 1} ${demandProfileLabel()} 관망 상태`;
   state.demandProfile = $("demand-profile")?.value || state.demandProfile || "metro";
   $("demand-scale-value").textContent = `${Number($("demand-scale").value).toFixed(2)}x`;
   $("source-head-value").textContent = `${Number($("source-head").value).toFixed(1)} m`;
@@ -2077,7 +2077,7 @@ function computeSnapshot() {
 
   const backendNodeById = new Map((backendSimulation?.node_results || []).map((node) => [String(node.node_id), node]));
   const nodes = state.nodes.map((node) => {
-    const localDemand = (demandByNode.get(node.node_id) || node.base_demand_lps || 0) * demandScale;
+    const localDemand = Number(demandByNode.get(node.node_id) ?? node.base_demand_lps ?? 0) * demandScale;
     const solvedHead = localHydraulics.heads.get(String(node.node_id));
     const pressure = Number.isFinite(solvedHead)
       ? solvedHead - Number(node.elevation_m || 0)
@@ -2866,7 +2866,7 @@ function solveEpanetSnapshotHeads({ sourceHead, demandScale, demandByNode, leakD
   let vector = unknownNodes.map((node) => Number(sourceHead) - Number(node.elevation_m || 0) * 0.05);
   const demand = new Map();
   for (const node of state.nodes) {
-    demand.set(String(node.node_id), Number(demandByNode.get(node.node_id) || node.base_demand_lps || 0) * Number(demandScale || 1));
+    demand.set(String(node.node_id), Number(demandByNode.get(node.node_id) ?? node.base_demand_lps ?? 0) * Number(demandScale || 1));
   }
   for (const [pipeId, value] of leakDemands || new Map()) {
     const pipe = state.pipes.find((item) => String(item.pipe_id) === String(pipeId));
@@ -3004,11 +3004,11 @@ function leakPenaltyAtNode(nodeId, leakDemands = activeLeakDemands()) {
 }
 
 function nodeDemandAt(minute) {
-  if (state.activeDemandMode === "inp" && state.demandPatterns.length) return inpPatternNodeDemandAt(minute);
-  const profileId = $("demand-profile")?.value || state.demandProfile || "metro";
+  const profileId = currentDemandProfileId();
+  if (state.activeDemandMode === "inp" && state.demandPatterns.length) return inpPatternNodeDemandAt(minute, profileId);
   if (demandProfiles[profileId]) return genericNodeDemandAt(minute, profileId);
   if (!state.demandByMinute.size) {
-    return new Map(state.nodes.map((node) => [node.node_id, node.base_demand_lps || 0]));
+    return new Map(state.nodes.map((node) => [node.node_id, cityDemandValue(node, minute, profileId, node.base_demand_lps || 0)]));
   }
   const available = [...state.demandByMinute.keys()].sort((a, b) => a - b);
   const nearest = available.reduce((best, candidate) => {
@@ -3016,16 +3016,29 @@ function nodeDemandAt(minute) {
     const candidateDistance = circularMinuteDistance(candidate, minute);
     return candidateDistance < bestDistance ? candidate : best;
   }, available[0]);
-  return state.demandByMinute.get(nearest) || new Map();
+  return scaleDemandMapByProfile(state.demandByMinute.get(nearest) || new Map(), minute, profileId);
 }
 
-function inpPatternNodeDemandAt(minute) {
+function currentDemandProfileId() {
+  const profileId = $("demand-profile")?.value || state.demandProfile || "metro";
+  return demandProfiles[profileId] ? profileId : "metro";
+}
+
+function demandProfileLabel(profileId = currentDemandProfileId()) {
+  return {
+    metro: "대도시",
+    midsize: "중소도시",
+    rural: "농업도시",
+  }[profileId] || "대도시";
+}
+
+function inpPatternNodeDemandAt(minute, profileId = currentDemandProfileId()) {
   return new Map(
     state.nodes.map((node) => {
       if (node.node_type === "reservoir") return [node.node_id, 0];
       const patternId = String(node.demand_pattern_id || "");
-      const multiplier = patternId ? demandPatternFactor(patternId, minute) : 1;
-      return [node.node_id, Number(node.base_demand_lps || 0) * multiplier];
+      const patternMultiplier = patternId ? demandPatternFactor(patternId, minute) : 1;
+      return [node.node_id, cityDemandValue(node, minute, profileId, Number(node.base_demand_lps || 0) * patternMultiplier)];
     }),
   );
 }
@@ -3068,13 +3081,26 @@ function demandPatternTimestepMinutes(rows) {
 }
 
 function genericNodeDemandAt(minute, profileId) {
-  const factor = demandProfileFactor(minute, profileId);
   return new Map(
     state.nodes.map((node) => [
       node.node_id,
-      node.node_type === "reservoir" ? 0 : Number(node.base_demand_lps || 0.8) * factor,
+      cityDemandValue(node, minute, profileId, Number(node.base_demand_lps || 0.8)),
     ]),
   );
+}
+
+function scaleDemandMapByProfile(demandMap, minute, profileId) {
+  return new Map(
+    state.nodes.map((node) => [
+      node.node_id,
+      cityDemandValue(node, minute, profileId, Number(demandMap.get(node.node_id) ?? node.base_demand_lps ?? 0)),
+    ]),
+  );
+}
+
+function cityDemandValue(node, minute, profileId, baseDemand) {
+  if (node.node_type === "reservoir") return 0;
+  return Number(baseDemand || 0) * demandProfileFactor(minute, profileId);
 }
 
 function demandProfileFactor(minute, profileId) {
@@ -3577,8 +3603,9 @@ function renderMap(snapshot) {
       const multiSelected = multiNodes.has(node.node_id);
       const isSource = node.node_type === "reservoir";
       const color = nodeLayerColor(node);
-      const radius = node.node_type === "reservoir" ? 13 : 10;
-      const pressure = node.node_type === "reservoir" ? "SRC" : `${node.pressure.toFixed(1)}m`;
+      const demandRadiusBoost = Math.min(7, Math.sqrt(Math.max(Number(node.localDemand || 0), 0)) * 1.1);
+      const radius = node.node_type === "reservoir" ? 13 : 9 + demandRadiusBoost;
+      const pressure = node.node_type === "reservoir" ? "SRC" : `${node.pressure.toFixed(1)}m · ${Number(node.localDemand || 0).toFixed(1)}L/s`;
       return `<g class="junction-icon ${isSource ? "source-icon" : ""}" data-node="${node.node_id}" ${isSource ? `data-source="${node.node_id}"` : ""} transform="translate(${point.x} ${point.y})">
         <g class="junction-marker" transform="scale(${markerScale})">
           ${selected ? `<circle class="selected-ring" r="18" />` : ""}
