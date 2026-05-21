@@ -6,8 +6,9 @@ def test_streamlit_embedded_dashboard_requires_backend_hydraulic_api() -> None:
     html = build_dashboard_html()
 
     assert "window.__STREAMLIT_EMBEDDED__ = true" in html
-    assert "window.__REQUIRE_BACKEND_HYDRAULIC_API__ = true" in html
+    assert "window.__REQUIRE_BACKEND_HYDRAULIC_API__ = false" in html
     assert "window.__ALLOW_FRONTEND_HYDRAULIC_FALLBACK__ = false" in html
+    assert "window.__USE_BACKEND_HYDRAULIC_API__ = false" in html
     assert 'window.__DRAWING_RECOGNITION_API_BASE__ = ""' in html
     assert "function __streamlitApiCandidates" in html
     assert "function __fetchStreamlitApi" in html

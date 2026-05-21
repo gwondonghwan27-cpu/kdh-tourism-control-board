@@ -194,8 +194,9 @@ def build_dashboard_html(
     <script>
       window.__STREAMLIT_RECOGNIZED_ASSETS__ = {json.dumps(recognized_assets, ensure_ascii=False)};
       window.__STREAMLIT_EMBEDDED__ = true;
-      window.__REQUIRE_BACKEND_HYDRAULIC_API__ = true;
+      window.__REQUIRE_BACKEND_HYDRAULIC_API__ = false;
       window.__ALLOW_FRONTEND_HYDRAULIC_FALLBACK__ = false;
+      window.__USE_BACKEND_HYDRAULIC_API__ = false;
       window.__DRAWING_RECOGNITION_API_BASE__ = {json.dumps(recognition_api_base or "", ensure_ascii=False)};
       const __streamlitOriginalFetch = window.fetch ? window.fetch.bind(window) : null;
       function __streamlitApiUrl(route) {{

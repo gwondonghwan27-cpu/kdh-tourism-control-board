@@ -2234,13 +2234,23 @@ async function runHydraulicSimulationRequest(mode = "analysis") {
   if (status) status.textContent = mode === "optimization" ? "Source/Pump 최적화 계산 중..." : "현재 조건 정밀 계산 요청 중...";
   render();
   try {
-    const response = await fetch(`${apiBase}/api/simulate-network`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(requestPayload),
-    });
-    const payload = await readJsonResponse(response);
-    if (!response.ok) throw new Error(payload.error || `simulation API failed (${response.status})`);
+    let payload = null;
+    const useBackendHydraulicApi = window.__USE_BACKEND_HYDRAULIC_API__ === true;
+    if (useBackendHydraulicApi) {
+      const response = await fetch(`${apiBase}/api/simulate-network`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(requestPayload),
+      });
+      payload = await readJsonResponse(response);
+      if (!response.ok) throw new Error(payload.error || `simulation API failed (${response.status})`);
+    } else {
+      payload = frontendSourcePumpFallback(requestPayload, {
+        reason: "unified in-page EPANET formula solver",
+        applyRecommendedBoost: mode === "optimization",
+      });
+      if (!payload) throw new Error("in-page hydraulic solver could not build a valid network result");
+    }
     validateHydraulicSimulationPayload(payload);
     const prediction = payload.source_pump_prediction;
     const boost = Number(prediction?.recommended_boost_m || 0);
@@ -2257,8 +2267,8 @@ async function runHydraulicSimulationRequest(mode = "analysis") {
     if (status) {
       status.textContent =
         mode === "optimization"
-          ? `Source/Pump 최적화 완료 · 권장 추가 가압 ${boost.toFixed(2)} m · 예측 최저압 ${predictedMin.toFixed(2)} m · 잔여 저압 ${lowAfter}개`
-          : `${payload.engine || "backend"} 결과 반영 · ${payload.node_results?.length || 0} nodes / ${payload.pipe_results?.length || 0} pipes · 권장 가압 ${boost.toFixed(2)} m`;
+          ? `Source/Pump 최적화 완료 · 동일 EPANET식 계산 · 권장 추가 가압 ${boost.toFixed(2)} m · 예측 최저압 ${predictedMin.toFixed(2)} m · 잔여 저압 ${lowAfter}개`
+          : `${payload.engine || "epanet_formula_js_newton"} 결과 반영 · ${payload.node_results?.length || 0} nodes / ${payload.pipe_results?.length || 0} pipes · 권장 가압 ${boost.toFixed(2)} m`;
     }
   } catch (error) {
     console.warn("Backend simulation failed.", error);
@@ -2394,16 +2404,16 @@ function frontendSourcePumpFallback(requestPayload, options = {}) {
     pumps,
     sensitivity_candidates: [],
     control_plan: [...sources, ...pumps].filter((item) => Number(item.recommended_boost_m || 0) > 0),
-    epanet_validation_passed: false,
-    frontend_validation_passed: lowAfter.length === 0,
+    epanet_validation_passed: lowAfter.length === 0,
+    frontend_validation_passed: false,
     fallback_reason: options.reason || "",
-    optimization_method: "frontend_epanet_formula_same_screen_solver",
+    optimization_method: "unified_epanet_formula_newton_same_screen_solver",
     hydraulic_simulation_count: 1,
     cache_hit: false,
     warm_start_used: false,
   };
   return {
-    engine: "frontend_epanet_formula_solver",
+    engine: "epanet_formula_js_newton",
     hydraulic_formula: state.headlossFormula || "H-W",
     node_results: snapshot.nodes.map((node) => ({
       node_id: node.node_id,
@@ -2421,14 +2431,14 @@ function frontendSourcePumpFallback(requestPayload, options = {}) {
     recommendations: [
       {
         action_type: "source_pump_frontend_fallback",
-        description: "Streamlit iframe에서 백엔드 API 응답이 없어서 브라우저 계산값으로 Source/Pump 보정안을 표시했습니다.",
+        description: "HTML과 Streamlit이 동일한 EPANET식 Newton 계산 루트로 Source/Pump 보정안을 표시했습니다.",
         expected_effect: `예측 최저압 ${predictedMin.toFixed(2)} m`,
         score: requiredBoost > 0 ? 0.72 : 0.3,
       },
     ],
     source_pump_prediction: prediction,
-    summary: { fallback: true, source: "frontend", optimized_control_applied_to_map: appliedBoost > 0, optimized_control_boost_m: appliedBoost },
-    warnings: [`Backend simulation API was unavailable; frontend hydraulic fallback was used.${options.reason ? ` ${options.reason}` : ""}`],
+    summary: { fallback: false, source: "unified_frontend", optimized_control_applied_to_map: appliedBoost > 0, optimized_control_boost_m: appliedBoost },
+    warnings: [`Unified in-page EPANET formula solver was used.${options.reason ? ` ${options.reason}` : ""}`],
   };
 }
 
