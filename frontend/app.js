@@ -138,6 +138,8 @@ const state = {
   backendSimulationSignature: "",
   backendSimulationPending: false,
   sourcePumpOptimizationPending: false,
+  optimizedControlBoostM: 0,
+  optimizedControlSignatureBase: "",
   hasUnsavedChanges: false,
   drawingFile: null,
   drawingFileType: null,
@@ -248,7 +250,14 @@ function initControls() {
   syncSourceControlLabels();
   suggestSourcePumpPosition();
 
-  ["time-slider", "demand-profile", "demand-scale", "source-head", "pump-head", "leak-pipe", "leak-demand"].forEach((id) => {
+  $("time-slider").addEventListener("input", render);
+  ["demand-profile", "demand-scale", "source-head", "pump-head"].forEach((id) => {
+    $(id).addEventListener("input", () => {
+      clearOptimizedControlBoost();
+      render();
+    });
+  });
+  ["leak-pipe", "leak-demand"].forEach((id) => {
     $(id).addEventListener("input", render);
   });
 
@@ -479,6 +488,7 @@ function restoreInitialDashboardNetwork() {
   buildDemandIndex();
   state.pipeEdits = new Map();
   state.leakDemands = new Map();
+  clearOptimizedControlBoost();
   clearBulkSelection();
   state.baseNodeGeometry = new Map(state.nodes.map((node) => [node.node_id, baseNodeState(node)]));
   state.originalNodeGeometry = new Map(state.nodes.map((node) => [node.node_id, baseNodeState(node)]));
@@ -1477,6 +1487,7 @@ function applyRecognitionAssetsToDashboard(assets) {
   state.leakDemands = new Map();
   state.backendSimulation = null;
   state.backendSimulationSignature = "";
+  clearOptimizedControlBoost();
   clearBulkSelection();
   state.baseNodeGeometry = new Map(state.nodes.map((node) => [node.node_id, baseNodeState(node)]));
   state.originalNodeGeometry = new Map(state.nodes.map((node) => [node.node_id, baseNodeState(node)]));
@@ -1899,13 +1910,17 @@ function render() {
   const junctions = snapshot.nodes.filter((node) => node.node_type !== "reservoir");
   const minPressure = junctions.length ? Math.min(...junctions.map((node) => node.pressure)) : null;
   const selectedMinute = currentMinute();
+  const timeIndex = currentTimeIndex();
 
-  $("time-label").textContent = formatMinute(selectedMinute);
-  $("timeline-title").textContent = `${formatMinute(selectedMinute)} 관망 상태`;
+  $("time-label").textContent = `${formatMinute(selectedMinute)} #${timeIndex + 1}/${state.timeline.length}`;
+  $("timeline-title").textContent = `${formatMinute(selectedMinute)} #${timeIndex + 1} 관망 상태`;
   state.demandProfile = $("demand-profile")?.value || state.demandProfile || "metro";
   $("demand-scale-value").textContent = `${Number($("demand-scale").value).toFixed(2)}x`;
   $("source-head-value").textContent = `${Number($("source-head").value).toFixed(1)} m`;
-  $("pump-head-value").textContent = `${Number($("pump-head").value).toFixed(1)} m`;
+  $("pump-head-value").textContent =
+    snapshot.optimizedControlBoostM > 0
+      ? `${(Number($("pump-head").value) + snapshot.optimizedControlBoostM).toFixed(1)} m`
+      : `${Number($("pump-head").value).toFixed(1)} m`;
   $("leak-demand-value").textContent = `${Number($("leak-demand").value).toFixed(2)} L/s`;
 
   $("node-count").textContent = junctions.length;
@@ -1951,7 +1966,8 @@ function updateDashboardStatus(snapshot) {
                   : "시나리오 편집";
   const backend = snapshot.backendSimulation ? "현재 조건 정밀 계산 반영" : "실시간 관망 계산";
   const dirty = hasNetworkChanged() ? " · 저장되지 않은 변경" : "";
-  $("scenario-label").textContent = `${mode} / ${backend}${dirty}`;
+  const optimized = snapshot.optimizedControlBoostM > 0 ? ` / optimized +${snapshot.optimizedControlBoostM.toFixed(2)} m live` : "";
+  $("scenario-label").textContent = `${mode} / ${backend}${optimized}${dirty}`;
   const status = $("backend-simulation-status");
   if (status && !state.backendSimulationPending && !snapshot.backendSimulation) {
     status.textContent = "현재 화면은 실시간 관망 계산값입니다.";
@@ -2045,7 +2061,8 @@ function firstSourceId() {
 
 function computeSnapshot() {
   const backendSimulation = activeBackendSimulation();
-  const sourceHead = Number($("source-head").value || 58) + Number($("pump-head").value || 0);
+  const optimizedControlBoostM = activeOptimizedControlBoost();
+  const sourceHead = Number($("source-head").value || 58) + Number($("pump-head").value || 0) + optimizedControlBoostM;
   const demandScale = Number($("demand-scale").value || 1);
   const leakDemands = activeLeakDemands();
   const demandByNode = nodeDemandAt(currentMinute());
@@ -2125,7 +2142,7 @@ function computeSnapshot() {
     };
   });
 
-  return { nodes, pipes, leakDemands, sourceHead, backendSimulation };
+  return { nodes, pipes, leakDemands, sourceHead, backendSimulation, optimizedControlBoostM };
 }
 
 function activeLeakDemands() {
@@ -2135,6 +2152,23 @@ function activeLeakDemands() {
 function activeBackendSimulation() {
   if (!state.backendSimulation || !state.backendSimulationSignature) return null;
   return state.backendSimulationSignature === liveHydraulicStateSignature() ? state.backendSimulation : null;
+}
+
+function activeOptimizedControlBoost() {
+  const boost = Number(state.optimizedControlBoostM || 0);
+  if (!boost || !Number.isFinite(boost)) return 0;
+  return state.optimizedControlSignatureBase === hydraulicControlBaseSignature() ? boost : 0;
+}
+
+function setOptimizedControlBoost(boostM) {
+  const boost = Math.max(Number(boostM || 0), 0);
+  state.optimizedControlBoostM = Number.isFinite(boost) ? boost : 0;
+  state.optimizedControlSignatureBase = state.optimizedControlBoostM > 0 ? hydraulicControlBaseSignature() : "";
+}
+
+function clearOptimizedControlBoost() {
+  state.optimizedControlBoostM = 0;
+  state.optimizedControlSignatureBase = "";
 }
 
 async function runBackendSimulation() {
@@ -2156,6 +2190,7 @@ async function runHydraulicSimulationRequest(mode = "analysis") {
   const button = mode === "optimization" ? optimizeButton : analysisButton;
   const status = $("backend-simulation-status");
   const apiBase = String(window.__DRAWING_RECOGNITION_API_BASE__ || "").replace(/\/$/, "");
+  if (mode === "optimization") clearOptimizedControlBoost();
   const requestPayload = networkSimulationPayload();
   if (!requestPayload.tables.nodes.length || !requestPayload.tables.pipes.length) {
     if (status) status.textContent = "EPANET .inp 관망을 먼저 적용한 뒤 계산할 수 있습니다.";
@@ -2176,10 +2211,16 @@ async function runHydraulicSimulationRequest(mode = "analysis") {
     });
     const payload = await readJsonResponse(response);
     if (!response.ok) throw new Error(payload.error || `simulation API failed (${response.status})`);
-    state.backendSimulation = payload;
-    state.backendSimulationSignature = requestSignature;
     const prediction = payload.source_pump_prediction;
     const boost = Number(prediction?.recommended_boost_m || 0);
+    if (mode === "optimization") {
+      setOptimizedControlBoost(boost);
+      state.backendSimulation = simulationWithOptimizedControlBoost(payload, boost);
+      state.backendSimulationSignature = liveHydraulicStateSignature(networkSimulationPayload());
+    } else {
+      state.backendSimulation = payload;
+      state.backendSimulationSignature = requestSignature;
+    }
     const predictedMin = Number(prediction?.predicted_min_pressure_m || 0);
     const lowAfter = prediction?.low_pressure_nodes_after?.length || 0;
     if (status) {
@@ -2192,8 +2233,9 @@ async function runHydraulicSimulationRequest(mode = "analysis") {
     console.warn("Backend simulation failed.", error);
     const fallback = mode === "optimization" ? frontendSourcePumpFallback(requestPayload) : null;
     if (fallback) {
+      setOptimizedControlBoost(fallback.source_pump_prediction?.recommended_boost_m || 0);
       state.backendSimulation = fallback;
-      state.backendSimulationSignature = requestSignature;
+      state.backendSimulationSignature = liveHydraulicStateSignature(networkSimulationPayload());
       const prediction = fallback.source_pump_prediction;
       if (status) {
         status.textContent = `Source/Pump 최적화 완료 · 프론트엔드 fallback · 권장 추가 가압 ${Number(prediction.recommended_boost_m || 0).toFixed(2)} m · 예측 최저압 ${Number(prediction.predicted_min_pressure_m || 0).toFixed(2)} m · 잔여 저압 ${prediction.low_pressure_nodes_after?.length || 0}개`;
@@ -2252,6 +2294,30 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
 }
 
+function simulationWithOptimizedControlBoost(payload, boostM) {
+  const boost = Math.max(Number(boostM || 0), 0);
+  const clone = JSON.parse(JSON.stringify(payload || {}));
+  clone.summary = { ...(clone.summary || {}) };
+  if (!boost || clone.summary.optimized_control_applied_to_map) return clone;
+  const reservoirIds = new Set(state.nodes.filter((node) => node.node_type === "reservoir").map((node) => String(node.node_id)));
+  clone.node_results = (clone.node_results || []).map((node) => {
+    const nodeId = String(node.node_id || "");
+    if (reservoirIds.has(nodeId)) return node;
+    const pressure = Number(node.pressure_head_m);
+    const grade = Number(node.hydraulic_grade_m);
+    return {
+      ...node,
+      pressure_head_m: Number.isFinite(pressure) ? pressure + boost : node.pressure_head_m,
+      hydraulic_grade_m: Number.isFinite(grade) ? grade + boost : node.hydraulic_grade_m,
+      optimized_control_boost_m: boost,
+    };
+  });
+  clone.pressure_violations = (clone.pressure_violations || []).filter((node) => Number(node.pressure_head_m || 0) + boost < MIN_PRESSURE);
+  clone.summary.optimized_control_applied_to_map = true;
+  clone.summary.optimized_control_boost_m = boost;
+  return clone;
+}
+
 function frontendSourcePumpFallback(requestPayload) {
   if (!state.nodes.length || !state.pipes.length) return null;
   const snapshot = computeSnapshot();
@@ -2308,7 +2374,7 @@ function frontendSourcePumpFallback(requestPayload) {
       },
     ],
     source_pump_prediction: prediction,
-    summary: { fallback: true, source: "frontend" },
+    summary: { fallback: true, source: "frontend", optimized_control_applied_to_map: true, optimized_control_boost_m: requiredBoost },
     warnings: ["Backend API was unavailable in the Streamlit iframe; frontend fallback optimization was used."],
   };
 }
@@ -2392,7 +2458,9 @@ async function readJsonResponse(response) {
   }
 }
 
-function networkSimulationPayload() {
+function networkSimulationPayload(options = {}) {
+  const includeOptimizedBoost = options.includeOptimizedBoost !== false;
+  const optimizedControlBoostM = includeOptimizedBoost ? activeOptimizedControlBoost() : 0;
   const demandByNode = nodeDemandAt(currentMinute());
   return {
     tables: {
@@ -2412,7 +2480,10 @@ function networkSimulationPayload() {
     scenario: {
       demand_multiplier: Number($("demand-scale").value || 1),
       source_head_m: Number($("source-head").value || state.reservoirs[0]?.head_m || 58),
-      pump_head_m: Number($("pump-head").value || 0),
+      pump_head_m: Number($("pump-head").value || 0) + optimizedControlBoostM,
+      optimized_control_boost_m: optimizedControlBoostM,
+      time_index: currentTimeIndex(),
+      minute_of_day: currentMinute(),
       leaks: [...activeLeakDemands()].map(([pipeId, demand]) => ({ pipe_id: pipeId, demand_lps: Number(demand || 0) })),
     },
   };
@@ -2422,8 +2493,41 @@ function liveHydraulicStateSignature(payload = networkSimulationPayload()) {
   return JSON.stringify({
     payload,
     minute: currentMinute(),
+    time_index: currentTimeIndex(),
     demand_profile: $("demand-profile")?.value || "",
     active_demand_mode: state.activeDemandMode || "profile",
+  });
+}
+
+function hydraulicControlBaseSignature() {
+  return JSON.stringify({
+    source_head_m: Number($("source-head")?.value || state.reservoirs[0]?.head_m || 58),
+    pump_head_m: Number($("pump-head")?.value || 0),
+    demand_scale: Number($("demand-scale")?.value || 1),
+    demand_profile: $("demand-profile")?.value || state.demandProfile || "metro",
+    active_demand_mode: state.activeDemandMode || "profile",
+    headloss_formula: state.headlossFormula || "H-W",
+    leaks: [...activeLeakDemands()].map(([pipeId, demand]) => [pipeId, Number(demand || 0)]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+    nodes: state.nodes.map((node) => [
+      node.node_id,
+      node.node_type,
+      Number(node.elevation_m || 0),
+      Number(node.base_demand_lps || 0),
+      String(node.demand_pattern_id || ""),
+    ]),
+    pipes: state.pipes.map((pipe) => {
+      const design = pipeDesign(pipe);
+      return [
+        pipe.pipe_id,
+        pipe.from_node,
+        pipe.to_node,
+        Number(design.length_m || 0),
+        Number(design.diameter_mm || 0),
+        Number(design.roughness_c || 0),
+        Number(design.minor_loss_k || 0),
+        String(design.material || ""),
+      ];
+    }),
   });
 }
 
@@ -2933,8 +3037,14 @@ function demandPatternFactor(patternId, minute) {
   if (!rows.length) return 1;
   const timestep = demandPatternTimestepMinutes(rows);
   const wrapped = ((Number(minute || 0) % 1440) + 1440) % 1440;
-  const step = Math.floor(wrapped / Math.max(timestep, 1)) % rows.length;
-  return Number(rows[step]?.multiplier ?? 1);
+  const cycleMinutes = Math.max(rows.length * Math.max(timestep, 1), Math.max(timestep, 1));
+  const position = (wrapped % cycleMinutes) / Math.max(timestep, 1);
+  const step = Math.floor(position) % rows.length;
+  const nextStep = (step + 1) % rows.length;
+  const ratio = position - Math.floor(position);
+  const current = Number(rows[step]?.multiplier ?? 1);
+  const next = Number(rows[nextStep]?.multiplier ?? current);
+  return current + (next - current) * ratio;
 }
 
 function demandPatternTimestepMinutes(rows) {
@@ -3308,7 +3418,7 @@ function fireFlowTarget(snapshot) {
 }
 
 function pressureWithExtraDemand(nodeId, extraLps) {
-  const sourceHead = Number($("source-head").value || 58) + Number($("pump-head").value || 0);
+  const sourceHead = Number($("source-head").value || 58) + Number($("pump-head").value || 0) + activeOptimizedControlBoost();
   const demandScale = Number($("demand-scale").value || 1);
   const demandByNode = nodeDemandAt(currentMinute());
   demandByNode.set(nodeId, Number(demandByNode.get(nodeId) || 0) + Number(extraLps || 0));
@@ -5315,6 +5425,7 @@ function renderLeakList() {
 
 function addLeakPipe(pipeId, demand = 0) {
   if (!pipeId) return;
+  clearOptimizedControlBoost();
   state.leakDemands.set(pipeId, Math.max(Number(demand || 0), 0.25));
   state.editorTab = "leak";
   state.selected = `pipe:${pipeId}`;
@@ -5324,6 +5435,7 @@ function addLeakPipe(pipeId, demand = 0) {
 
 function updateLeakDemand(pipeId, demand) {
   if (!pipeId) return;
+  clearOptimizedControlBoost();
   if (demand <= 0) {
     state.leakDemands.delete(pipeId);
   } else {
@@ -5333,6 +5445,7 @@ function updateLeakDemand(pipeId, demand) {
 }
 
 function removeLeakPipe(pipeId) {
+  clearOptimizedControlBoost();
   state.leakDemands.delete(pipeId);
   render();
 }
@@ -5364,6 +5477,7 @@ function renderDemandChart() {
 }
 
 function updatePipeEditFromControls() {
+  clearOptimizedControlBoost();
   if (state.addMode || state.pipeDrawMode) {
     if (state.pendingJunction?.locked) {
       const source = state.nodes.find((node) => node.node_id === $("source-junction").value);
@@ -5531,6 +5645,7 @@ function syncSourceDraftControls() {
 }
 
 function updateSourceEditFromControls(event = null) {
+  clearOptimizedControlBoost();
   updateSourcePositionFromControls(event);
   syncSourceControlLabels();
 }
@@ -5602,6 +5717,7 @@ function updateSourcePositionFromControls(event = null) {
 }
 
 function updateJunctionEditFromControls() {
+  clearOptimizedControlBoost();
   const node = selectedJunction();
   if (!node || node.node_type === "reservoir") return;
   Object.assign(node, {
@@ -5784,6 +5900,7 @@ function setPlaybackSpeed(speed) {
 }
 
 function resetScenario() {
+  clearOptimizedControlBoost();
   $("time-slider").value = Math.min(42, state.timeline.length - 1);
   $("demand-scale").value = 1;
   $("demand-profile").value = state.demandProfile || "metro";
@@ -5798,6 +5915,10 @@ function resetScenario() {
 
 function currentMinute() {
   return state.timeline[Number($("time-slider").value || 0)] || 0;
+}
+
+function currentTimeIndex() {
+  return Number($("time-slider").value || 0);
 }
 
 function minuteOfDay(timestamp) {
