@@ -2262,10 +2262,13 @@ async function runHydraulicSimulationRequest(mode = "analysis") {
     }
   } catch (error) {
     console.warn("Backend simulation failed.", error);
-    const fallback = frontendSourcePumpFallback(requestPayload, {
-      reason: error.message || "API unavailable",
-      applyRecommendedBoost: mode === "optimization",
-    });
+    const allowFrontendFallback = window.__ALLOW_FRONTEND_HYDRAULIC_FALLBACK__ === true;
+    const fallback = allowFrontendFallback
+      ? frontendSourcePumpFallback(requestPayload, {
+          reason: error.message || "API unavailable",
+          applyRecommendedBoost: mode === "optimization",
+        })
+      : null;
     if (fallback) {
       if (mode === "optimization") setOptimizedControlBoost(fallback.source_pump_prediction?.recommended_boost_m || 0);
       state.backendSimulation = fallback;
@@ -2512,6 +2515,13 @@ function pumpPowerKw(flowLps, headM, efficiencyPercent) {
 async function readJsonResponse(response) {
   const text = await response.text();
   if (!text) return {};
+  const trimmed = text.trim().toLowerCase();
+  if (trimmed.startsWith("<!doctype html") || trimmed.startsWith("<html")) {
+    return {
+      error:
+        "simulation API returned Streamlit HTML instead of JSON. Check that streamlit_app.py, app/streamlit_api_routes.py, and requirements.txt are deployed together.",
+    };
+  }
   try {
     return JSON.parse(text);
   } catch (error) {
@@ -2675,8 +2685,28 @@ function renderSourcePumpPrediction(snapshot) {
   const controlPlanCount = prediction.control_plan?.length || 0;
   const engineName = String(snapshot.backendSimulation?.engine || "");
   const frontendComputed = engineName.includes("frontend") || prediction.frontend_validation_passed === true;
-  const validationText = prediction.epanet_validation_passed ? "EPANET 검증 통과" : frontendComputed ? "브라우저 수리계산 통과" : "EPANET 검증 필요";
-  const accelerationText = frontendComputed ? "브라우저 계산" : prediction.cache_hit ? "캐시 재사용" : prediction.warm_start_used ? "Warm-start 적용" : "민감도 최적화";
+  const toolkitComputed = engineName.includes("toolkit") || engineName.includes("wntr");
+  const epanetFormulaComputed = engineName.includes("epanet_formula");
+  const validationText = prediction.epanet_validation_passed
+    ? toolkitComputed
+      ? "EPANET Toolkit 검증 통과"
+      : epanetFormulaComputed
+        ? "EPANET식 검산 통과"
+        : "정밀 검산 통과"
+    : frontendComputed
+      ? "브라우저 계산 결과"
+      : "정밀 검산 필요";
+  const accelerationText = frontendComputed
+    ? "브라우저 계산"
+    : toolkitComputed
+      ? "Toolkit 해석"
+      : epanetFormulaComputed
+        ? "Python EPANET식 해석"
+        : prediction.cache_hit
+          ? "캐시 재사용"
+          : prediction.warm_start_used
+            ? "Warm-start 적용"
+            : "민감도 최적화";
   const activeControlCount = [...sources, ...pumps].filter((item) => Number(item.recommended_boost_m || 0) > 0).length;
 
   panel.innerHTML = `
@@ -3487,13 +3517,19 @@ function reportDiagnostic(snapshot) {
 
 function epanetToolkitDiagnostic(snapshot) {
   const backend = snapshot.backendSimulation;
-  const toolkitLinked = Boolean(backend && !String(backend.engine || "").includes("fallback"));
+  const engineName = String(backend?.engine || "").toLowerCase();
+  const toolkitLinked = engineName.includes("toolkit") || engineName.includes("wntr");
+  const epanetFormulaSolver = engineName.includes("epanet_formula");
   return {
     category: "EPANET",
-    title: toolkitLinked ? "Toolkit 엔진 사용" : "EPANET식 로컬 Solver",
-    detail: toolkitLinked ? `엔진 ${backend.engine}` : "현재는 EPANET 2.2 수두손실식 기반 로컬 해석입니다. Toolkit 직접 연동 시 신뢰성 표기가 더 강해집니다.",
-    action: "WNTR/EPANET Toolkit 실행 경로와 결과 비교 리포트 추가",
-    level: toolkitLinked ? "ok" : "info",
+    title: toolkitLinked ? "Toolkit 엔진 사용" : epanetFormulaSolver ? "EPANET식 Python Solver" : "정밀 해석 대기",
+    detail: toolkitLinked
+      ? `엔진 ${backend.engine}`
+      : epanetFormulaSolver
+        ? "현재 결과는 EPANET 2.2 수두손실식과 절점 연속방정식을 Python Newton solver로 계산한 값입니다."
+        : "정밀 계산 버튼을 실행하면 사용 엔진과 검산 상태가 표시됩니다.",
+    action: toolkitLinked ? "Toolkit 결과 유지" : "EPANET Toolkit 직접 연동 시 공식 GGA 결과와 비교 검정 가능",
+    level: toolkitLinked || epanetFormulaSolver ? "ok" : "info",
   };
 }
 

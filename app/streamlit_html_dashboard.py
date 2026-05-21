@@ -111,11 +111,8 @@ def ensure_local_recognition_api(st: Any) -> str | None:
         if is_recognition_api_ready(configured_api_base):
             st.sidebar.caption(f"관망 계산 API: {configured_api_base}")
             return configured_api_base
-        st.sidebar.warning("설정된 관망 계산 API에 연결할 수 없습니다. Streamlit 내장 fallback 계산으로 동작합니다.")
+        st.sidebar.warning("설정된 관망 계산 API에 연결할 수 없습니다. 정밀 계산은 동일 Python API가 연결될 때만 실행됩니다.")
         return None
-
-    st.sidebar.caption("관망 계산 API: Streamlit 동일 서버 /api/simulate-network")
-    return None
 
     for port in range(5181, 5200):
         api_base = f"http://127.0.0.1:{port}"
@@ -146,7 +143,7 @@ def ensure_local_recognition_api(st: Any) -> str | None:
             if process.poll() is not None:
                 break
             time.sleep(0.1)
-    st.sidebar.warning("관망 계산 API를 시작하지 못했습니다. 정밀 해석 기능만 제한될 수 있습니다.")
+    st.sidebar.caption("관망 계산 API: Streamlit 동일 서버 /api/simulate-network")
     return None
 
 
@@ -227,6 +224,8 @@ def build_dashboard_html(
     <script>
       window.__STREAMLIT_RECOGNIZED_ASSETS__ = {json.dumps(recognized_assets, ensure_ascii=False)};
       window.__STREAMLIT_EMBEDDED__ = true;
+      window.__REQUIRE_BACKEND_HYDRAULIC_API__ = true;
+      window.__ALLOW_FRONTEND_HYDRAULIC_FALLBACK__ = false;
       window.__DRAWING_RECOGNITION_API_BASE__ = {json.dumps(recognition_api_base or "", ensure_ascii=False)};
       const __streamlitOriginalFetch = window.fetch ? window.fetch.bind(window) : null;
       function __streamlitApiUrl(route) {{
