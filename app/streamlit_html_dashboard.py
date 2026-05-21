@@ -20,6 +20,7 @@ SRC_DIR = REPO_ROOT / "src"
 
 
 STREAMLIT_DASHBOARD_HEIGHT = 4200
+DASHBOARD_API_VERSION = "2026-05-21-source-id-alignment"
 
 
 def main() -> None:
@@ -144,6 +145,7 @@ def is_recognition_api_ready(api_base: str) -> bool:
                 response.status == 200
                 and payload.get("ok") is True
                 and payload.get("service") == "drawing-recognition-api"
+                and payload.get("dashboard_api_version") == DASHBOARD_API_VERSION
                 and payload.get("supports_cors") is True
             )
     except (OSError, json.JSONDecodeError):

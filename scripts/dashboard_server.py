@@ -94,6 +94,8 @@ NUMERIC_COLUMN_DEFAULTS: dict[str, dict[str, float]] = {
     },
 }
 
+DASHBOARD_API_VERSION = "2026-05-21-source-id-alignment"
+
 
 class DashboardRequestHandler(BaseHTTPRequestHandler):
     server_version = "WaterNetworkDashboard/0.1"
@@ -188,6 +190,7 @@ def _health_payload() -> dict[str, Any]:
         "ok": True,
         "service": "drawing-recognition-api",
         "supports_cors": True,
+        "dashboard_api_version": DASHBOARD_API_VERSION,
     }
 
 
