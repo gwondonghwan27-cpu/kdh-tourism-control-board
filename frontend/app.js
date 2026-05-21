@@ -137,6 +137,8 @@ const state = {
   backendSimulation: null,
   backendSimulationSignature: "",
   backendSimulationPending: false,
+  backendSimulationStatusMessage: "",
+  backendSimulationStatusLevel: "",
   sourcePumpOptimizationPending: false,
   optimizedControlBoostM: 0,
   optimizedControlSignatureBase: "",
@@ -1488,6 +1490,8 @@ function applyRecognitionAssetsToDashboard(assets) {
   state.leakDemands = new Map();
   state.backendSimulation = null;
   state.backendSimulationSignature = "";
+  state.backendSimulationStatusMessage = "";
+  state.backendSimulationStatusLevel = "";
   clearOptimizedControlBoost();
   clearBulkSelection();
   state.baseNodeGeometry = new Map(state.nodes.map((node) => [node.node_id, baseNodeState(node)]));
@@ -1963,6 +1967,10 @@ function updateDashboardStatus(snapshot) {
   const optimized = snapshot.optimizedControlBoostM > 0 ? ` / optimized +${snapshot.optimizedControlBoostM.toFixed(2)} m live` : "";
   $("scenario-label").textContent = `${mode} / ${backend}${optimized}${dirty}`;
   const status = $("backend-simulation-status");
+  if (status && state.backendSimulationStatusMessage && !state.backendSimulationPending && !snapshot.backendSimulation) {
+    status.textContent = state.backendSimulationStatusMessage;
+    return;
+  }
   if (status && !state.backendSimulationPending && !snapshot.backendSimulation) {
     status.textContent = "현재 화면은 실시간 관망 계산값입니다.";
   }
@@ -2195,6 +2203,8 @@ async function runHydraulicSimulationRequest(mode = "analysis") {
   state.backendSimulationPending = true;
   state.sourcePumpOptimizationPending = mode === "optimization";
   setHydraulicActionBusy(mode === "optimization");
+  state.backendSimulationStatusMessage = "";
+  state.backendSimulationStatusLevel = "";
   if (status) status.textContent = mode === "optimization" ? "Source/Pump 최적화 계산 중..." : "현재 조건 정밀 계산 요청 중...";
   render();
   try {
@@ -2238,6 +2248,8 @@ async function runHydraulicSimulationRequest(mode = "analysis") {
     } else {
       state.backendSimulation = null;
       state.backendSimulationSignature = "";
+      state.backendSimulationStatusLevel = "error";
+      state.backendSimulationStatusMessage = `${mode === "optimization" ? "Source/Pump 최적화" : "현재 조건 정밀 계산"} 실패: ${error.message || "server error"}`;
       if (status) status.textContent = `${mode === "optimization" ? "Source/Pump 최적화" : "현재 조건 정밀 계산"} 실패: ${error.message || "server error"}`;
     }
   } finally {
@@ -2550,6 +2562,16 @@ function renderSourcePumpPrediction(snapshot) {
         <span class="source-pump-badge">계산 중</span>
       </div>
       <div class="source-pump-empty">모든 Source와 Pump 조합을 현재 수요 조건에 맞춰 재계산하고 있습니다.</div>
+    `;
+    return;
+  }
+  if (state.backendSimulationStatusLevel === "error") {
+    panel.innerHTML = `
+      <div class="source-pump-prediction-header">
+        <strong>Source/Pump 운영 최적화</strong>
+        <span class="source-pump-badge is-warning">계산 실패</span>
+      </div>
+      <div class="source-pump-empty">${escapeHtml(state.backendSimulationStatusMessage || "Streamlit 계산 API 응답을 확인할 수 없습니다.")}</div>
     `;
     return;
   }

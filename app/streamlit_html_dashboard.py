@@ -224,6 +224,10 @@ def build_dashboard_html(
       const __streamlitOriginalFetch = window.fetch ? window.fetch.bind(window) : null;
       function __streamlitApiUrl(route) {{
         try {{
+          const ancestorOrigin = window.location.ancestorOrigins && window.location.ancestorOrigins[0];
+          if (ancestorOrigin) return new URL(route, ancestorOrigin).toString();
+        }} catch (error) {{}}
+        try {{
           if (document.referrer) return new URL(route, document.referrer).toString();
         }} catch (error) {{}}
         try {{
