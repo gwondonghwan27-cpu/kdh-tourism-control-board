@@ -2064,7 +2064,7 @@ function firstSourceId() {
 function computeSnapshot() {
   const backendSimulation = activeBackendSimulation();
   const optimizedControlBoostM = activeOptimizedControlBoost();
-  const sourceHead = Number($("source-head").value || 58) + Number($("pump-head").value || 0) + optimizedControlBoostM;
+  const sourceHead = currentSourceHead();
   const demandScale = Number($("demand-scale").value || 1);
   const leakDemands = activeLeakDemands();
   const demandByNode = nodeDemandAt(currentMinute());
@@ -2173,6 +2173,32 @@ function clearOptimizedControlBoost() {
   state.optimizedControlSignatureBase = "";
 }
 
+function currentSourceHead() {
+  return Number($("source-head")?.value || state.reservoirs[0]?.head_m || 58);
+}
+
+function activeControlPump() {
+  return state.pumps.find((item) => String(item.status || "on").toLowerCase() !== "off") || state.pumps[0] || null;
+}
+
+function effectivePumpGain(pump, includeOptimizedBoost = true) {
+  if (!pump) return 0;
+  const activePump = activeControlPump();
+  const pumpId = String(pump.pump_id || "");
+  const activePumpId = String(activePump?.pump_id || "");
+  if (activePumpId && pumpId === activePumpId) {
+    return Number($("pump-head")?.value || 0) + (includeOptimizedBoost ? activeOptimizedControlBoost() : 0);
+  }
+  return Number(pump.base_head_gain_m || 0) * Number(pump.speed_multiplier || 1);
+}
+
+function effectiveReservoirHead(reservoir) {
+  if (!reservoir) return currentSourceHead();
+  const firstReservoir = state.reservoirs[0];
+  if (firstReservoir && String(reservoir.node_id || "") === String(firstReservoir.node_id || "")) return currentSourceHead();
+  return Number(reservoir.head_m || 0);
+}
+
 async function runBackendSimulation() {
   return runHydraulicSimulationRequest("analysis");
 }
@@ -2236,16 +2262,22 @@ async function runHydraulicSimulationRequest(mode = "analysis") {
     }
   } catch (error) {
     console.warn("Backend simulation failed.", error);
-    const fallback = mode === "optimization" ? frontendSourcePumpFallback(requestPayload, { reason: error.message || "API unavailable" }) : null;
+    const fallback = frontendSourcePumpFallback(requestPayload, {
+      reason: error.message || "API unavailable",
+      applyRecommendedBoost: mode === "optimization",
+    });
     if (fallback) {
-      setOptimizedControlBoost(fallback.source_pump_prediction?.recommended_boost_m || 0);
+      if (mode === "optimization") setOptimizedControlBoost(fallback.source_pump_prediction?.recommended_boost_m || 0);
       state.backendSimulation = fallback;
-      state.backendSimulationSignature = liveHydraulicStateSignature(networkSimulationPayload());
+      state.backendSimulationSignature = mode === "optimization" ? liveHydraulicStateSignature(networkSimulationPayload()) : requestSignature;
       state.backendSimulationStatusMessage = "";
       state.backendSimulationStatusLevel = "";
       const prediction = fallback.source_pump_prediction;
       if (status) {
-        status.textContent = `Source/Pump 최적화 완료 · 브라우저 수리계산 · 권장 추가 가압 ${Number(prediction.recommended_boost_m || 0).toFixed(2)} m · 예측 최저압 ${Number(prediction.predicted_min_pressure_m || 0).toFixed(2)} m · 잔여 저압 ${prediction.low_pressure_nodes_after?.length || 0}개`;
+        status.textContent =
+          mode === "optimization"
+            ? `Source/Pump 최적화 완료 · 브라우저 수리계산 · 권장 가압 ${Number(prediction.recommended_boost_m || 0).toFixed(2)} m · 최저압 ${Number(prediction.predicted_min_pressure_m || 0).toFixed(2)} m`
+            : `현재 조건 정밀 계산 완료 · 브라우저 수리계산 · ${fallback.node_results?.length || 0} nodes / ${fallback.pipe_results?.length || 0} pipes`;
       }
     } else {
       state.backendSimulation = null;
@@ -2334,15 +2366,20 @@ function frontendSourcePumpFallback(requestPayload, options = {}) {
   if (!junctions.length) return null;
   const minPressure = Math.min(...junctions.map((node) => Number(node.pressure || 0)));
   const requiredBoost = clamp(Math.max(0, MIN_PRESSURE - minPressure + 0.5), 0, 120);
+  const appliedBoost = options.applyRecommendedBoost === false ? 0 : requiredBoost;
   const predictedMin = minPressure + requiredBoost;
   const lowAfter = junctions.filter((node) => node.pressure + requiredBoost < MIN_PRESSURE).map((node) => ({
     node_id: node.node_id,
     pressure_head_m: Number((node.pressure + requiredBoost).toFixed(3)),
   }));
+  const activePressureViolations = junctions.filter((node) => node.pressure + appliedBoost < MIN_PRESSURE).map((node) => ({
+    node_id: node.node_id,
+    pressure_head_m: Number((node.pressure + appliedBoost).toFixed(3)),
+  }));
   const sources = buildFrontendSourceRecommendations(snapshot, requiredBoost);
   const pumps = buildFrontendPumpRecommendations(snapshot, requiredBoost);
   const totalSourceOutflow = sources.reduce((sum, item) => sum + Number(item.predicted_outflow_lps || 0), 0);
-  const totalPumpFlow = pumps.reduce((sum, item) => sum + Number(item.predicted_flow_lps || 0), 0);
+  const totalPumpFlow = pumps.reduce((sum, item) => sum + Math.abs(Number(item.predicted_flow_lps || 0)), 0);
   const prediction = {
     feasible: lowAfter.length === 0,
     recommended_boost_m: requiredBoost,
@@ -2367,15 +2404,15 @@ function frontendSourcePumpFallback(requestPayload, options = {}) {
     hydraulic_formula: state.headlossFormula || "H-W",
     node_results: snapshot.nodes.map((node) => ({
       node_id: node.node_id,
-      pressure_head_m: node.node_type === "reservoir" ? node.pressure : node.pressure + requiredBoost,
-      hydraulic_grade_m: node.hydraulicHead + (node.node_type === "reservoir" ? 0 : requiredBoost),
+      pressure_head_m: node.node_type === "reservoir" ? node.pressure : node.pressure + appliedBoost,
+      hydraulic_grade_m: node.hydraulicHead + (node.node_type === "reservoir" ? 0 : appliedBoost),
     })),
     pipe_results: snapshot.pipes.map((pipe) => ({
       pipe_id: pipe.pipe_id,
       flow_lps: pipe.flow_lps,
       headloss_m: pipe.headDeltaM,
     })),
-    pressure_violations: lowAfter,
+    pressure_violations: activePressureViolations,
     headloss_alerts: [],
     aged_pressure_stress: [],
     recommendations: [
@@ -2387,7 +2424,7 @@ function frontendSourcePumpFallback(requestPayload, options = {}) {
       },
     ],
     source_pump_prediction: prediction,
-    summary: { fallback: true, source: "frontend", optimized_control_applied_to_map: true, optimized_control_boost_m: requiredBoost },
+    summary: { fallback: true, source: "frontend", optimized_control_applied_to_map: appliedBoost > 0, optimized_control_boost_m: appliedBoost },
     warnings: [`Backend simulation API was unavailable; frontend hydraulic fallback was used.${options.reason ? ` ${options.reason}` : ""}`],
   };
 }
@@ -2398,7 +2435,7 @@ function buildFrontendSourceRecommendations(snapshot, requiredBoost) {
   const sourceFlows = sourceOutflowLookup(snapshot);
   return sources.map((source) => {
     const reservoir = state.reservoirs.find((item) => item.node_id === source.node_id) || {};
-    const currentHead = Number(reservoir.head_m || $("source-head")?.value || 0);
+    const currentHead = effectiveReservoirHead(reservoir);
     const flow = Number(sourceFlows.get(source.node_id) || 0);
     return {
       source_id: reservoir.reservoir_id || source.node_id,
@@ -2418,7 +2455,7 @@ function buildFrontendPumpRecommendations(snapshot, requiredBoost) {
   const pumpCount = Math.max(activePumps.length, 1);
   return activePumps.map((pump) => {
     const flow = pumpFlowEstimate(snapshot, pump);
-    const currentHead = Number(pump.base_head_gain_m || 0) * Number(pump.speed_multiplier || 1);
+    const currentHead = effectivePumpGain(pump, false);
     const boost = activePumps.length ? requiredBoost / pumpCount : 0;
     return {
       pump_id: pump.pump_id,
@@ -2442,8 +2479,9 @@ function sourceOutflowLookup(snapshot) {
   for (const pipe of snapshot.pipes) {
     const from = state.nodes.find((node) => node.node_id === pipe.from_node);
     const to = state.nodes.find((node) => node.node_id === pipe.to_node);
-    if (from?.node_type === "reservoir") outflow.set(from.node_id, (outflow.get(from.node_id) || 0) + Math.abs(Number(pipe.flow_lps || 0)));
-    if (to?.node_type === "reservoir") outflow.set(to.node_id, (outflow.get(to.node_id) || 0) + Math.abs(Number(pipe.flow_lps || 0)));
+    const flow = signedPipeFlowLps(pipe);
+    if (from?.node_type === "reservoir") outflow.set(from.node_id, Math.max((outflow.get(from.node_id) || 0) + flow, 0));
+    if (to?.node_type === "reservoir") outflow.set(to.node_id, Math.max((outflow.get(to.node_id) || 0) - flow, 0));
   }
   return outflow;
 }
@@ -2454,7 +2492,16 @@ function pumpFlowEstimate(snapshot, pump) {
     (pipe.from_node === pump.to_node && pipe.to_node === pump.from_node) ||
     pipe.pipe_id === `PUMP_${pump.pump_id}`,
   );
-  return Math.abs(Number(matchingPipe?.flow_lps || 0));
+  if (!matchingPipe) return 0;
+  const flow = signedPipeFlowLps(matchingPipe);
+  if (matchingPipe.from_node === pump.from_node && matchingPipe.to_node === pump.to_node) return flow;
+  if (matchingPipe.from_node === pump.to_node && matchingPipe.to_node === pump.from_node) return -flow;
+  return flow;
+}
+
+function signedPipeFlowLps(pipe) {
+  const magnitude = Math.abs(Number(pipe?.flow_lps || 0));
+  return pipe?.flowDirection === "reverse" ? -magnitude : magnitude;
 }
 
 function pumpPowerKw(flowLps, headM, efficiencyPercent) {
@@ -2886,7 +2933,7 @@ function pumpGainForPipe(pipe) {
     return fromNode === String(pipe.from_node || "") && toNode === String(pipe.to_node || "");
   });
   if (!pump || String(pump.status || "on").toLowerCase() === "off") return 0;
-  return Number(pump.base_head_gain_m || 0) * Number(pump.speed_multiplier || 1);
+  return effectivePumpGain(pump);
 }
 
 function solveEpanetSnapshotHeads({ sourceHead, demandScale, demandByNode, leakDemands }) {
@@ -3482,7 +3529,7 @@ function fireFlowTarget(snapshot) {
 }
 
 function pressureWithExtraDemand(nodeId, extraLps) {
-  const sourceHead = Number($("source-head").value || 58) + Number($("pump-head").value || 0) + activeOptimizedControlBoost();
+  const sourceHead = currentSourceHead();
   const demandScale = Number($("demand-scale").value || 1);
   const demandByNode = nodeDemandAt(currentMinute());
   demandByNode.set(nodeId, Number(demandByNode.get(nodeId) || 0) + Number(extraLps || 0));
