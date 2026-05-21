@@ -12,6 +12,7 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 import streamlit as st
+from streamlit.starlette import App
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = REPO_ROOT / "src"
@@ -58,6 +59,10 @@ from aging_water_network.visualization.risk_plot import (  # noqa: E402
     create_material_summary,
     create_top_risk_bar,
 )
+try:  # noqa: E402
+    from streamlit_api_routes import STREAMLIT_API_ROUTES
+except ModuleNotFoundError:  # pragma: no cover - package import path fallback
+    from app.streamlit_api_routes import STREAMLIT_API_ROUTES
 
 try:  # noqa: E402
     from streamlit_plotly_events import plotly_events  # type: ignore
@@ -1286,3 +1291,6 @@ def estimate_after_action_min_pressure(pressure: pd.DataFrame, action_type: str)
 
 if __name__ == "__main__":
     main()
+
+
+app = App(Path(__file__).resolve(), routes=STREAMLIT_API_ROUTES)

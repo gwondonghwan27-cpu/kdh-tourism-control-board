@@ -14,6 +14,13 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from streamlit.starlette import App
+
+try:
+    from streamlit_api_routes import STREAMLIT_API_ROUTES
+except ModuleNotFoundError:  # pragma: no cover - package import path fallback
+    from app.streamlit_api_routes import STREAMLIT_API_ROUTES
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_DIR = REPO_ROOT / "frontend"
@@ -299,3 +306,6 @@ def remove_script_tags(body: str) -> str:
 
 if __name__ == "__main__":
     main()
+
+
+app = App(Path(__file__).resolve(), routes=STREAMLIT_API_ROUTES)
