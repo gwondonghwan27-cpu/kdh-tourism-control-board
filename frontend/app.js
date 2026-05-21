@@ -1804,16 +1804,8 @@ function fitMapToCurrentNetwork() {
     resetMapZoom();
     return;
   }
-  const xs = points.map((node) => Number(node.x));
-  const ys = points.map((node) => Number(node.y));
-  const minX = Math.min(...xs);
-  const maxX = Math.max(...xs);
-  const minY = Math.min(...ys);
-  const maxY = Math.max(...ys);
-  const width = Math.max(maxX - minX, 120);
-  const height = Math.max(maxY - minY, 120);
   state.mapCenter = { x: 560, y: 325 };
-  state.mapZoom = clamp(Math.min(1120 / (width + 180), 650 / (height + 160)), 0.6, 2.8);
+  state.mapZoom = 1;
 }
 
 function renderRecognitionTable(id, rows, columns) {
@@ -2233,6 +2225,14 @@ async function runHydraulicSimulationRequest(mode = "analysis") {
     }
   } catch (error) {
     console.warn("Backend simulation failed.", error);
+    if (window.__REQUIRE_BACKEND_SIMULATION__) {
+      state.backendSimulation = null;
+      state.backendSimulationSignature = "";
+      if (status) {
+        status.textContent = `${mode === "optimization" ? "Source/Pump 최적화" : "현재 조건 정밀 계산"} 실패: Streamlit 계산 API 연결이 필요합니다.`;
+      }
+      return;
+    }
     const fallback = mode === "optimization" ? frontendSourcePumpFallback(requestPayload) : null;
     if (fallback) {
       setOptimizedControlBoost(fallback.source_pump_prediction?.recommended_boost_m || 0);

@@ -217,6 +217,7 @@ def build_dashboard_html(
     <script>
       window.__STREAMLIT_RECOGNIZED_ASSETS__ = {json.dumps(recognized_assets, ensure_ascii=False)};
       window.__DRAWING_RECOGNITION_API_BASE__ = {json.dumps(recognition_api_base or "", ensure_ascii=False)};
+      window.__REQUIRE_BACKEND_SIMULATION__ = true;
       const __streamlitOriginalFetch = window.fetch ? window.fetch.bind(window) : null;
       window.fetch = async function(resource, options) {{
         const url = typeof resource === "string" ? resource : resource?.url || "";
